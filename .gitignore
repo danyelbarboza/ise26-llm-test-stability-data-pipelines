@@ -3,6 +3,7 @@ __pycache__/
 *.pyc
 .agents/
 .codex/
+.env
 
 results/raw/*.csv
 results/summary/*.csv

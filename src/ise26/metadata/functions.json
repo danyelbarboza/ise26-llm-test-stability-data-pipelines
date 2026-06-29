@@ -3,36 +3,42 @@
     "id": "F01",
     "function_name": "clean_customer_names",
     "module": "ise26.implementations.correct",
-    "description": "Standardize customer names into a new normalized column without mutating the original DataFrame."
+    "description": "Standardize customer names into a new normalized column without mutating the original DataFrame.",
+    "expected_behavior": "Receive a DataFrame, create a new normalized name column, remove extra spaces, lowercase values, remove accents, convert null or blank values to pandas.NA, and preserve the original DataFrame unchanged."
   },
   {
     "id": "F02",
     "function_name": "deduplicate_events",
     "module": "ise26.implementations.correct",
-    "description": "Remove duplicate events by keeping the most recent row per event identifier while preserving null identifiers."
+    "description": "Remove duplicate events by keeping the most recent row per event identifier while preserving null identifiers.",
+    "expected_behavior": "Keep the most recent row for each non-null event identifier, treat invalid timestamps as older than valid ones, preserve null event identifiers, break timestamp ties by keeping the last row in original order, and avoid mutating the input DataFrame."
   },
   {
     "id": "F03",
     "function_name": "calculate_monthly_revenue",
     "module": "ise26.implementations.correct",
-    "description": "Aggregate valid non-canceled order amounts by month in YYYY-MM format."
+    "description": "Aggregate valid non-canceled order amounts by month in YYYY-MM format.",
+    "expected_behavior": "Return a DataFrame with month and revenue columns, group by YYYY-MM, ignore canceled statuses in English or Portuguese regardless of case and surrounding spaces, treat invalid or missing amounts as zero, ignore invalid dates, and sort the result by month."
   },
   {
     "id": "F04",
     "function_name": "join_customers_orders",
     "module": "ise26.implementations.correct",
-    "description": "Perform a deterministic full outer join between customers and orders, handling null keys explicitly and annotating each row with a record status."
+    "description": "Perform a deterministic full outer join between customers and orders, handling null keys explicitly and annotating each row with a record status.",
+    "expected_behavior": "Perform a deterministic full outer join, preserve unmatched rows from both inputs, classify rows as matched, customer_without_order, or order_without_customer, never mark rows with null join keys as matched, reset the index, and keep the original DataFrames unchanged."
   },
   {
     "id": "F05",
     "function_name": "validate_schema",
     "module": "ise26.implementations.correct",
-    "description": "Validate required columns and logical column types against a schema definition with normalized expected-type labels."
+    "description": "Validate required columns and logical column types against a schema definition with normalized expected-type labels.",
+    "expected_behavior": "Accept schema labels int, float, number, string, datetime, and bool after strip and lowercase normalization, allow extra columns, report missing columns, report logical type mismatches with column, expected_type, and actual_type, and raise ValueError for unsupported expected types."
   },
   {
     "id": "F06",
     "function_name": "classify_payment_status",
     "module": "ise26.implementations.correct",
-    "description": "Classify payment rows as invalid, paid on time, paid late, overdue, or pending, treating invalid provided payment dates as invalid."
+    "description": "Classify payment rows as invalid, paid on time, paid late, overdue, or pending, treating invalid provided payment dates as invalid.",
+    "expected_behavior": "Mark rows as invalid when amount is missing, non-numeric, or less than or equal to zero, when due_date is invalid, or when a provided paid_date is invalid; otherwise classify as paid_on_time, paid_late, overdue, or pending based on due_date, paid_date, and a valid reference_date."
   }
 ]

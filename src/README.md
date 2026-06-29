@@ -9,11 +9,12 @@ Aqui fica o pacote Python `ise26`, que reúne:
 - as implementações corretas;
 - as implementações defeituosas;
 - os metadados do experimento;
-- o módulo de roteamento dinâmico usado pelos testes gerados por LLM.
+- o módulo de roteamento dinâmico usado pelos testes gerados por LLM;
+- a nova camada `llm/`, responsável pela infraestrutura de geração rastreável.
 
 ## O que é a pasta `ise26`
 
-`ise26` é o pacote principal do projeto. É por meio dele que os módulos são importados nos testes e nos scripts.
+`ise26` é o pacote principal do projeto. É por meio dele que os módulos são importados nos testes internos e na infraestrutura experimental.
 
 Exemplo:
 
@@ -23,30 +24,27 @@ from ise26.targets import clean_customer_names
 
 ## Por que o código fica dentro de `src`
 
-Usar `src/` é uma prática comum em projetos Python porque ajuda a separar:
+Usar `src/` ajuda a separar:
 
-- o código-fonte real;
-- arquivos de teste;
+- código-fonte real;
+- testes;
+- scripts;
 - documentação;
-- scripts auxiliares;
 - resultados experimentais.
 
-Isso também reduz o risco de importações acidentais a partir da raiz do projeto de forma inconsistente.
+Isso reduz o risco de imports inconsistentes a partir da raiz do projeto.
 
 ## Como os módulos são importados
 
-O projeto usa `pythonpath = src` no `pytest.ini`. Isso permite que imports como os abaixo funcionem:
+Nos testes internos, o projeto usa `pythonpath = src` em `pytest.ini`.
 
-```python
-from ise26.implementations.correct import validate_schema
-from ise26.targets import classify_payment_status
-```
+Nos scripts que precisam importar `ise26` diretamente, o caminho `src/` é adicionado explicitamente quando necessário para manter o comando simples no terminal.
 
 ## O que uma pessoa iniciante precisa saber antes de mexer aqui
 
-- Nem todo arquivo em `src/` representa “lógica de negócio”; parte dele existe para apoiar o experimento.
-- Alterar comportamento em `src/ise26/implementations/` pode exigir atualização de testes, metadados e documentação.
-- O arquivo `targets.py` é importante para o experimento porque ele permite trocar a implementação testada sem alterar o teste gerado.
+- Nem todo arquivo em `src/` representa regra de negócio; parte dele existe para sustentar o experimento.
+- Alterar `implementations/` ou `metadata/` pode exigir atualização de testes, protocolo e documentação.
+- Alterar `llm/` afeta a rastreabilidade das gerações com DeepSeek.
 - Se você estiver começando, leia primeiro:
   - `src/ise26/README.md`
   - `src/ise26/implementations/README.md`

@@ -2,31 +2,37 @@
 
 ## Objetivo
 
-Este protocolo descreve como o experimento deve ser conduzido para avaliar testes gerados por LLMs para funções de transformação de dados em Python.
+Este protocolo descreve como conduzir a geração e a execução de testes automatizados produzidos por LLM para as funções de transformação de dados do projeto ISE26.
 
-O objetivo é manter:
+O foco é garantir:
 
-- consistência entre execuções;
-- rastreabilidade dos artefatos;
-- clareza sobre o que é dado real e o que é apenas placeholder;
-- reprodutibilidade mínima para análise acadêmica posterior.
-
-## Estado atual do repositório
-
-No momento da redação deste protocolo:
-
-- a infraestrutura experimental já existe;
-- a organização das pastas já foi preparada;
-- os testes internos já validam a base do projeto;
-- os testes gerados reais por LLM ainda não fazem parte do repositório.
+- rastreabilidade;
+- reprodutibilidade;
+- comparabilidade entre execuções;
+- separação clara entre placeholder estrutural e dado experimental real.
 
 ## Escopo
 
 - Quantidade de funções-alvo: `6`
-- Quantidade de execuções previstas por função: `5`
-- Quantidade de alvos por execução: `4`
+- Quantidade de execuções planejadas por função: `5`
+- Quantidade total planejada de chamadas reais à LLM: `30`
+- Quantidade de alvos de execução por suíte gerada: `4`
   - `1` implementação correta
   - `3` versões defeituosas
+
+## Observação sobre dados sintéticos internos
+
+O repositório possui `DataFrame`s sintéticos em `tests/fixtures.py` para apoiar apenas a validação interna da base.
+
+Esses dados:
+
+- não fazem parte dos resultados experimentais;
+- não devem ser tratados como material gerado por LLM;
+- não substituem os dados criados dentro dos testes gerados pela LLM.
+
+Salvo mudança metodológica futura devidamente registrada, cada teste gerado por LLM deve definir seus próprios dados no próprio arquivo de teste.
+
+O prompt oficial também deve reforçar que a LLM não deve importar `tests/fixtures.py`.
 
 ## Funções usadas
 
@@ -39,49 +45,155 @@ As funções oficiais do experimento são:
 - `validate_schema`
 - `classify_payment_status`
 
-## Modelo de LLM
+## Provedor e modelo oficiais
 
-- LLM usada: `A definir`
-- Versão do modelo: `A definir`
-- Data da geração: `A preencher`
-- Responsável pela geração: `A preencher`
+- Provedor: `DeepSeek`
+- Modelo: `deepseek-v4-flash`
+- Base URL: `https://api.deepseek.com`
+- Formato da API: compatível com OpenAI
+- Chave: variável de ambiente `DEEPSEEK_API_KEY`
+
+## Parâmetros oficiais da geração
+
+- `temperature = 0.7`
+- `top_p = 1.0`
+- `max_tokens = 4096`
+- `stream = false`
+- política de histórico: `sem histórico entre chamadas`
+- política de edição manual: `salvar resposta bruta; extrair código mecanicamente; não corrigir manualmente o teste gerado`
+
+## Arquivo oficial de configuração
+
+O arquivo congelado para a rodada atual é:
+
+```text
+experiments/config/deepseek_v4_flash.json
+```
+
+Se esse arquivo mudar antes ou durante a coleta oficial, a mudança precisa ser registrada explicitamente.
 
 ## Prompt padrão
 
 - Arquivo do prompt: `experiments/prompts/test_generation_prompt_template.md`
-- O mesmo prompt deve ser usado em todas as execuções oficiais da mesma rodada experimental.
-- Se o prompt mudar, a mudança deve ser registrada explicitamente antes de continuar a coleta.
+- O mesmo prompt-base deve ser usado em todas as execuções oficiais da mesma rodada.
+- Cada chamada deve ser independente.
+- O modelo não deve receber histórico de chamadas anteriores.
 
 ## Regra sobre edição dos testes gerados
 
-- O teste gerado pela LLM não deve ser editado manualmente por padrão.
+- O teste gerado não deve ser editado manualmente durante a coleta oficial.
 - A resposta bruta da LLM deve ser salva antes de qualquer extração.
-- A extração do código para `test_generated.py` deve preservar a lógica produzida pela LLM.
-- Se houver necessidade excepcional de intervenção manual, isso deve ser registrado como limitação.
+- A extração do código para `test_generated.py` deve ser mecânica.
+- Não é permitido “consertar” logicamente um teste gerado para fazê-lo passar ou executar.
 
-## Estrutura de salvamento
+## Estrutura oficial de salvamento por execução
 
-### Resposta bruta da LLM
-
-Salvar em:
+Cada execução real deve salvar artefatos em:
 
 ```text
-experiments/raw_responses/FXX_run_YY_response.txt
+experiments/generated_tests/FXX/run_YY/
 ```
 
-ou
+Arquivos obrigatórios:
+
+- `system_prompt.txt`
+- `prompt.txt`
+- `request.json`
+- `raw_response.txt`
+- `test_generated.py`
+- `metadata.json`
+- `status.json`
+
+## Manifesto geral de geração
+
+Cada tentativa de geração real deve registrar uma linha em:
 
 ```text
-experiments/raw_responses/FXX_run_YY_response.md
+experiments/generated_tests/manifest.csv
 ```
 
-### Teste extraído
+Campos esperados:
 
-Salvar em:
+- `function_id`
+- `function_name`
+- `run_id`
+- `provider`
+- `model`
+- `temperature`
+- `top_p`
+- `max_tokens`
+- `timestamp_utc`
+- `status`
+- `syntax_valid`
+- `prompt_hash`
+- `response_hash`
+- `output_path`
+- `error_summary`
+- `input_tokens`
+- `output_tokens`
+- `total_tokens`
 
-```text
-experiments/generated_tests/FXX/run_YY/test_generated.py
+## Critérios para classificar uma tentativa de geração
+
+### Execução válida
+
+Uma tentativa é válida para análise quando:
+
+- a chamada real foi feita com a configuração oficial;
+- existe `raw_response.txt`;
+- existe `test_generated.py` correspondente;
+- existe `metadata.json` com hashes e parâmetros;
+- o status não é placeholder nem erro estrutural.
+
+### Execução inválida
+
+Uma tentativa deve ser tratada como inválida quando:
+
+- houve edição manual não documentada;
+- o vínculo entre resposta bruta e teste salvo foi perdido;
+- a configuração usada não corresponde à rodada oficial;
+- o código salvo não representa a resposta recebida.
+
+### Execução placeholder
+
+Uma execução é apenas placeholder quando:
+
+- a pasta existe só para manter a estrutura;
+- ainda não houve chamada real à LLM;
+- o `test_generated.py` ainda contém apenas marcador estrutural.
+
+### Status registrados em `status.json`
+
+Os estados oficiais são:
+
+- `not_generated`
+- `generated_syntax_valid`
+- `generated_syntax_invalid`
+- `api_error`
+
+## Runner experimental
+
+O script:
+
+```bash
+python scripts/run_generated_tests.py
 ```
+
+deve executar cada suíte real contra:
+
+- a implementação correta;
+- `BUG01`;
+- `BUG02`;
+- `BUG03`.
+
+O runner não deve tratar placeholder como dado real e deve registrar de forma controlada:
+
+- teste ausente;
+- teste placeholder;
+- teste com sintaxe inválida;
+- erro de API em geração anterior.
+
+## Resultados experimentais
 
 ### Resultados brutos
 
@@ -101,56 +213,15 @@ results/summary/summary_by_run.csv
 results/summary/summary_overall.csv
 ```
 
-## Critérios de execução
-
-### Execução válida
-
-Uma execução pode ser considerada válida para análise quando:
-
-- existe resposta bruta rastreável da LLM;
-- existe `test_generated.py` correspondente;
-- o teste foi executado pelo runner;
-- o registro da execução aparece no CSV bruto;
-- o status não é apenas placeholder estrutural.
-
-### Execução inválida
-
-Uma execução deve ser tratada como inválida quando:
-
-- o arquivo do teste está corrompido;
-- o código não representa de fato a resposta gerada;
-- houve intervenção manual não documentada;
-- a rastreabilidade entre resposta bruta e teste foi perdida.
-
-### Execução placeholder
-
-Uma execução é placeholder quando:
-
-- a pasta existe apenas para manter a estrutura;
-- o arquivo ainda não contém uma suíte real gerada pela LLM;
-- o runner registra o caso, mas isso não vale como dado experimental real.
-
-## Procedimento experimental recomendado
-
-1. Rodar `python -m pytest` para confirmar que a base está estável.
-2. Ler o README principal e este protocolo.
-3. Gerar o teste com a LLM usando o prompt oficial.
-4. Salvar a resposta bruta da LLM.
-5. Extrair o código Python para `test_generated.py`.
-6. Rodar `python scripts/run_generated_tests.py`.
-7. Rodar `python scripts/summarize_results.py`.
-8. Revisar os CSVs produzidos.
-9. Registrar observações e limitações.
-
 ## Métricas registradas
 
-As métricas principais do experimento incluem:
+As métricas principais incluem:
 
 - executabilidade;
 - taxa de aprovação na implementação correta;
 - taxa de detecção de defeitos;
 - número de testes coletados;
-- número de `asserts` (quando medido);
+- número de `asserts`, quando medido;
 - variação entre execuções;
 - quantidade de falhas por função;
 - observações qualitativas.
@@ -158,19 +229,33 @@ As métricas principais do experimento incluem:
 ## Limitações que devem ser registradas
 
 - teste ausente;
-- teste vazio;
 - placeholder;
-- extração manual necessária;
-- erro de ambiente;
+- erro de API;
+- sintaxe inválida;
+- extração mecânica sem teste executável;
+- incompatibilidade de ambiente;
 - ambiguidade do prompt;
-- ambiguidade na interpretação da função;
-- incompatibilidade de dependência ou versão.
+- alteração indevida de configuração;
+- edição manual indevida.
+
+## Procedimento experimental recomendado
+
+1. Rodar `python -m pytest`.
+2. Revisar este protocolo.
+3. Configurar `.env` local com `DEEPSEEK_API_KEY`.
+4. Rodar `python scripts/generate_llm_tests.py --dry-run`.
+5. Confirmar função, execução e quantidade de chamadas planejadas.
+6. Rodar `python scripts/generate_llm_tests.py --execute`.
+7. Rodar `python scripts/run_generated_tests.py`.
+8. Rodar `python scripts/summarize_results.py`.
+9. Registrar observações e limitações.
 
 ## Integridade dos dados
 
 - Não inventar testes gerados por LLM.
 - Não inventar resultados experimentais.
-- Não tratar placeholder como resultado real.
-- Não apagar arquivos de resultado sem registrar.
-- Preservar `stdout` e `stderr` das execuções.
-- Manter coerência entre resposta bruta, teste salvo e linha do CSV bruto.
+- Não misturar testes internos com testes gerados.
+- Não mudar o prompt no meio da rodada oficial.
+- Não mudar a configuração do modelo no meio da rodada oficial.
+- Não apagar artefatos sem registrar.
+- Não registrar a chave da API em arquivos do repositório.

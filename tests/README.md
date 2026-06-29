@@ -14,7 +14,7 @@ São testes de manutenção e validação da base do projeto.
 
 ### Testes gerados por LLM
 
-São os testes que ainda serão produzidos como parte do experimento oficial e ficarão em `experiments/generated_tests/`.
+São os testes produzidos pela DeepSeek como parte do experimento oficial e armazenados em `experiments/generated_tests/`.
 
 ## Por que os testes internos existem
 
@@ -22,8 +22,23 @@ Eles servem para:
 
 - validar as 6 funções corretas;
 - verificar se os 18 bugs continuam diferentes da referência;
-- confirmar integridade de assinaturas e organização;
-- reduzir risco de congelar uma base inconsistente.
+- confirmar integridade estrutural do repositório;
+- validar `ise26.targets`;
+- validar a infraestrutura DeepSeek sem usar a API real.
+
+## Papel de `tests/fixtures.py`
+
+O arquivo `tests/fixtures.py` reúne pequenos `DataFrame`s sintéticos usados pelos testes internos.
+
+Esses dados:
+
+- são artificiais e didáticos;
+- não vêm de fonte real;
+- existem apenas para validação interna da base;
+- não são resultados experimentais;
+- não devem ser confundidos com testes gerados por LLM.
+
+Os testes gerados por LLM devem construir seus próprios dados dentro do arquivo gerado, salvo se o protocolo do experimento mudar no futuro.
 
 ## Como rodar
 
@@ -35,19 +50,19 @@ python -m pytest
 
 ## O que significa um teste passar
 
-Quando um teste passa, isso significa que o comportamento observado foi compatível com o comportamento esperado definido para aquele cenário.
+Quando um teste passa, isso significa que o comportamento observado foi compatível com o comportamento esperado daquele cenário.
 
 ## O que significa um teste falhar
 
-Quando um teste falha, isso significa que:
+Quando um teste falha, isso indica:
 
-- o comportamento mudou;
-- existe uma regressão;
-- o teste estava com expectativa incorreta;
-- ou houve algum problema de ambiente.
+- mudança de comportamento;
+- regressão;
+- expectativa incorreta no teste;
+- ou problema de ambiente.
 
 ## Aviso importante
 
 Esses testes não são os dados experimentais principais do estudo.
 
-Eles existem para dar suporte ao experimento, não para substituir os testes gerados por LLM.
+Eles existem para dar suporte à base experimental e à infraestrutura de geração e execução.

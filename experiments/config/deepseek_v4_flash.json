@@ -1,0 +1,13 @@
+{
+  "provider": "DeepSeek",
+  "model": "deepseek-v4-flash",
+  "base_url": "https://api.deepseek.com",
+  "temperature": 0.7,
+  "top_p": 1.0,
+  "max_tokens": 4096,
+  "stream": false,
+  "runs_per_function": 5,
+  "history_policy": "no_history_between_calls",
+  "manual_editing_policy": "raw_response_saved; code_extracted_mechanically; no_manual_fixing_of_generated_tests",
+  "purpose": "Generate pytest suites for evaluating intra-model stability across repeated executions"
+}

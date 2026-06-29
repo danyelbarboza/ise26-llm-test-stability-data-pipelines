@@ -9,6 +9,7 @@ import re
 import subprocess
 import sys
 import time
+import ast
 from pathlib import Path
 from typing import Any
 
@@ -107,12 +108,26 @@ def detect_test_presence(test_file: Path) -> tuple[bool, str]:
         return False, "missing"
 
     content = test_file.read_text(encoding="utf-8")
+    status_path = test_file.with_name("status.json")
+    if status_path.exists():
+        with status_path.open("r", encoding="utf-8") as file_handle:
+            status_payload = json.load(file_handle)
+
+        status_value = str(status_payload.get("status", "")).strip()
+        if status_value in {"not_generated", "api_error"}:
+            return False, status_value
+
     if PLACEHOLDER_MARKER in content:
         return False, "placeholder"
 
     # A lightweight pattern check is enough here because the repository should
     # not execute arbitrary placeholder files when they do not actually define
     # pytest tests yet.
+    try:
+        ast.parse(content)
+    except SyntaxError:
+        return False, "syntax_invalid"
+
     test_patterns = [
         re.compile(r"^\s*def\s+test_", re.MULTILINE),
         re.compile(r"^\s*class\s+Test", re.MULTILINE),
@@ -183,6 +198,9 @@ def build_missing_test_result(test_file_status: str) -> dict[str, Any]:
         "placeholder": "Generated test file is still a placeholder and was not executed.",
         "empty": "Generated test file is empty and was not executed.",
         "no_tests_detected": "Generated test file does not define pytest tests and was not executed.",
+        "syntax_invalid": "Generated test file has invalid Python syntax and was not executed.",
+        "api_error": "Generated test file was not executed because the API call failed.",
+        "not_generated": "Generated test file was not executed because the suite was not generated yet.",
     }
 
     return {
@@ -284,12 +302,14 @@ def print_execution_summary(rows: list[dict[str, Any]]) -> None:
     executed_rows = sum(1 for row in rows if row["executable"])
     placeholder_rows = sum(1 for row in rows if row["test_file_status"] == "placeholder")
     missing_rows = sum(1 for row in rows if row["test_file_status"] == "missing")
+    syntax_invalid_rows = sum(1 for row in rows if row["test_file_status"] == "syntax_invalid")
 
     print(f"Saved raw results to: {RAW_RESULTS_PATH}")
     print(f"Total target executions recorded: {len(rows)}")
     print(f"Executable target executions: {executed_rows}")
     print(f"Placeholder target executions skipped: {placeholder_rows}")
     print(f"Missing target executions skipped: {missing_rows}")
+    print(f"Syntax-invalid target executions skipped: {syntax_invalid_rows}")
 
     if executed_rows == 0:
         print("No executable generated tests were found.")

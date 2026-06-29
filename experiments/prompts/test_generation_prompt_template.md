@@ -1,30 +1,45 @@
-# Test Generation Prompt Template
+# Template oficial de geração de testes do ISE26
 
-Generate a `pytest` test suite for the Python function described below.
+Gere uma suíte de testes em `pytest` para a função Python descrita abaixo.
 
-Requirements:
+Requisitos obrigatórios:
 
-- Import the function only from `ise26.targets`.
+- Importe a função somente a partir de `ise26.targets`.
 - Use `pytest`.
-- Do not modify or wrap the original implementation.
-- Cover common scenarios and edge cases.
-- When applicable, consider null values, duplicates, dates, schema validation, and business rules.
-- Write assertions that verify behavior through returned values.
-- Return only Python test code.
-- Do not include Markdown fences.
-- Do not include explanations outside the test code.
+- Não altere, não reimplemente e não envolva a função original.
+- Não use API externa, arquivos externos, rede, banco de dados ou recursos fora do próprio teste.
+- Crie os `DataFrame`s sintéticos necessários dentro do próprio arquivo de teste.
+- Não importe `tests.fixtures` nem qualquer fixture interna do repositório.
+- Cubra casos comuns e casos de borda.
+- Quando fizer sentido, considere valores nulos, duplicatas, datas, schema e regras de negócio.
+- Verifique comportamento por meio de valores retornados e estruturas produzidas pela função.
+- Retorne apenas código Python do arquivo de teste.
+- Não inclua cercas Markdown.
+- Não inclua explicações fora do código.
 
-Function metadata:
+Importação esperada:
 
-- Function ID: `{function_id}`
-- Function name: `{function_name}`
-- Description: `{function_description}`
+```python
+from ise26.targets import {function_name}
+```
 
-Expected behavior:
+Metadados da função:
+
+- ID da função: `{function_id}`
+- Nome da função: `{function_name}`
+- Descrição resumida: `{function_description}`
+
+Docstring da função:
+
+```text
+{function_docstring}
+```
+
+Comportamento esperado:
 
 `{expected_behavior}`
 
-Function code:
+Código da função correta:
 
 ```python
 {function_code}
