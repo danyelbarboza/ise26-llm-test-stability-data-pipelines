@@ -1,0 +1,110 @@
+[
+  {
+    "bug_id": "F01_BUG01",
+    "function_id": "F01",
+    "module": "ise26.implementations.buggy.f01_bug01",
+    "summary": "Does not treat null values as missing."
+  },
+  {
+    "bug_id": "F01_BUG02",
+    "function_id": "F01",
+    "module": "ise26.implementations.buggy.f01_bug02",
+    "summary": "Does not remove accent marks."
+  },
+  {
+    "bug_id": "F01_BUG03",
+    "function_id": "F01",
+    "module": "ise26.implementations.buggy.f01_bug03",
+    "summary": "Does not collapse extra internal spaces."
+  },
+  {
+    "bug_id": "F02_BUG01",
+    "function_id": "F02",
+    "module": "ise26.implementations.buggy.f02_bug01",
+    "summary": "Keeps the first row instead of the most recent event."
+  },
+  {
+    "bug_id": "F02_BUG02",
+    "function_id": "F02",
+    "module": "ise26.implementations.buggy.f02_bug02",
+    "summary": "Drops rows whose event identifier is null."
+  },
+  {
+    "bug_id": "F02_BUG03",
+    "function_id": "F02",
+    "module": "ise26.implementations.buggy.f02_bug03",
+    "summary": "Compares timestamps as strings instead of datetimes."
+  },
+  {
+    "bug_id": "F03_BUG01",
+    "function_id": "F03",
+    "module": "ise26.implementations.buggy.f03_bug01",
+    "summary": "Includes canceled orders in the revenue calculation."
+  },
+  {
+    "bug_id": "F03_BUG02",
+    "function_id": "F03",
+    "module": "ise26.implementations.buggy.f03_bug02",
+    "summary": "Does not convert null or invalid amounts to zero."
+  },
+  {
+    "bug_id": "F03_BUG03",
+    "function_id": "F03",
+    "module": "ise26.implementations.buggy.f03_bug03",
+    "summary": "Groups revenue by day instead of by month."
+  },
+  {
+    "bug_id": "F04_BUG01",
+    "function_id": "F04",
+    "module": "ise26.implementations.buggy.f04_bug01",
+    "summary": "Uses an inner join instead of a full outer join."
+  },
+  {
+    "bug_id": "F04_BUG02",
+    "function_id": "F04",
+    "module": "ise26.implementations.buggy.f04_bug02",
+    "summary": "Omits the record_status column."
+  },
+  {
+    "bug_id": "F04_BUG03",
+    "function_id": "F04",
+    "module": "ise26.implementations.buggy.f04_bug03",
+    "summary": "Misclassifies unmatched or null-key order rows."
+  },
+  {
+    "bug_id": "F05_BUG01",
+    "function_id": "F05",
+    "module": "ise26.implementations.buggy.f05_bug01",
+    "summary": "Ignores missing required columns."
+  },
+  {
+    "bug_id": "F05_BUG02",
+    "function_id": "F05",
+    "module": "ise26.implementations.buggy.f05_bug02",
+    "summary": "Ignores logical type mismatches."
+  },
+  {
+    "bug_id": "F05_BUG03",
+    "function_id": "F05",
+    "module": "ise26.implementations.buggy.f05_bug03",
+    "summary": "Rejects DataFrames that include extra columns."
+  },
+  {
+    "bug_id": "F06_BUG01",
+    "function_id": "F06",
+    "module": "ise26.implementations.buggy.f06_bug01",
+    "summary": "Treats payments made exactly on the due date as late."
+  },
+  {
+    "bug_id": "F06_BUG02",
+    "function_id": "F06",
+    "module": "ise26.implementations.buggy.f06_bug02",
+    "summary": "Classifies zero amounts as pending instead of invalid."
+  },
+  {
+    "bug_id": "F06_BUG03",
+    "function_id": "F06",
+    "module": "ise26.implementations.buggy.f06_bug03",
+    "summary": "Treats an invalid provided paid_date as if the payment were simply absent."
+  }
+]

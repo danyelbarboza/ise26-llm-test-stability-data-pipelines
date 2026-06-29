@@ -1,0 +1,38 @@
+[
+  {
+    "id": "F01",
+    "function_name": "clean_customer_names",
+    "module": "ise26.implementations.correct",
+    "description": "Standardize customer names into a new normalized column without mutating the original DataFrame."
+  },
+  {
+    "id": "F02",
+    "function_name": "deduplicate_events",
+    "module": "ise26.implementations.correct",
+    "description": "Remove duplicate events by keeping the most recent row per event identifier while preserving null identifiers."
+  },
+  {
+    "id": "F03",
+    "function_name": "calculate_monthly_revenue",
+    "module": "ise26.implementations.correct",
+    "description": "Aggregate valid non-canceled order amounts by month in YYYY-MM format."
+  },
+  {
+    "id": "F04",
+    "function_name": "join_customers_orders",
+    "module": "ise26.implementations.correct",
+    "description": "Perform a deterministic full outer join between customers and orders, handling null keys explicitly and annotating each row with a record status."
+  },
+  {
+    "id": "F05",
+    "function_name": "validate_schema",
+    "module": "ise26.implementations.correct",
+    "description": "Validate required columns and logical column types against a schema definition with normalized expected-type labels."
+  },
+  {
+    "id": "F06",
+    "function_name": "classify_payment_status",
+    "module": "ise26.implementations.correct",
+    "description": "Classify payment rows as invalid, paid on time, paid late, overdue, or pending, treating invalid provided payment dates as invalid."
+  }
+]
