@@ -1,107 +1,94 @@
-# README da pasta `scripts`
+# Pasta `scripts`
 
-## O que esta pasta contém
+Esta pasta contém os scripts usados para gerar, executar e resumir os testes do experimento.
 
-Esta pasta contém os scripts operacionais do experimento.
+## `generate_llm_tests.py`
 
-## Papel de `generate_llm_tests.py`
+Gera testes a partir do prompt oficial e da configuração do modelo.
 
-Esse é o script oficial para gerar testes com a DeepSeek.
-
-### O que ele faz
-
-- lê a configuração oficial em `experiments/config/deepseek_v4_flash.json`;
-- monta o prompt final a partir do template padrão;
-- aceita `--dry-run` e `--execute` como modos mutuamente exclusivos;
-- salva `system_prompt.txt`, `prompt.txt` e `request.json`;
-- salva a resposta bruta em `raw_response.txt`;
-- extrai mecanicamente o código para `test_generated.py`;
-- salva `metadata.json` e `status.json`;
-- atualiza `experiments/generated_tests/manifest.csv`.
-
-### Comandos principais
+### Uso
 
 ```bash
-python scripts/generate_llm_tests.py --dry-run
+python scripts/generate_llm_tests.py --dry-run --config experiments/config/deepseek_v4_flash.json
+python scripts/generate_llm_tests.py --dry-run --config experiments/config/deepseek_v4_pro.json
 ```
+
+### Execução real
 
 ```bash
-python scripts/generate_llm_tests.py --dry-run --function-id F01 --run-id run_01
+python scripts/generate_llm_tests.py --execute --config experiments/config/deepseek_v4_flash.json
 ```
+
+Esse comando só deve ser usado com confirmação explícita.
+
+### O que ele salva
+
+- `prompt.txt`
+- `system_prompt.txt`
+- `raw_response.txt`
+- `test_generated.py`
+- `metadata.json`
+- `request.json`
+- `status.json`
+- `manifest.csv`
+
+## `run_generated_tests.py`
+
+Executa os testes gerados contra a implementação correta e contra os bugs.
+
+### Uso
 
 ```bash
-python scripts/generate_llm_tests.py --execute
+python scripts/run_generated_tests.py --model deepseek_v4_flash
+python scripts/run_generated_tests.py --model deepseek_v4_pro
 ```
 
-### Diagnóstico rápido
+Também é possível usar `--config` para inferir o modelo a partir do arquivo JSON correspondente.
 
-- Se o modo for `dry-run`, nenhuma chamada real é feita.
-- Se faltar `DEEPSEEK_API_KEY`, a execução real deve falhar com erro claro.
-- Se os artefatos já existirem, use `--overwrite` apenas quando a substituição estiver decidida e registre essa decisão no manifesto.
+### Saída
 
-## Papel de `run_generated_tests.py`
+Cria o CSV bruto em `results/by_model/<modelo>/raw/generated_tests_results.csv`.
 
-Esse script percorre a estrutura de `experiments/generated_tests/` e executa cada suíte real contra:
+## `summarize_results.py`
 
-- a implementação correta;
-- os três bugs da função correspondente.
+Lê o CSV bruto do modelo selecionado e gera os resumos agregados.
 
-Ele também distingue:
-
-- placeholder;
-- teste ausente;
-- erro de API anterior;
-- sintaxe inválida;
-- teste pronto para execução.
-
-O CSV bruto também registra se a falha no bug é confiável ou se a mesma suíte já falhou na correta:
-
-- `bug_failure`;
-- `correct_passed_for_same_suite`;
-- `reliable_defect_detection`;
-- `false_positive`;
-- `contaminated_bug_failure`.
-
-### Comando
+### Uso
 
 ```bash
-python scripts/run_generated_tests.py
+python scripts/summarize_results.py --model deepseek_v4_flash
+python scripts/summarize_results.py --model deepseek_v4_pro
 ```
 
-### O que ele gera
+Também é possível usar `--config` para inferir o modelo a partir do arquivo JSON correspondente.
 
-- `results/raw/generated_tests_results.csv`
+### Saída
 
-## Papel de `summarize_results.py`
+Gera os arquivos em `results/by_model/<modelo>/summary/`.
 
-Esse script lê o CSV bruto e produz arquivos de resumo.
+## `compare_model_results.py`
 
-### Comando
+Compara Flash e Pro quando ambos tiverem resultados oficiais reais.
+
+### Uso
 
 ```bash
-python scripts/summarize_results.py
+python scripts/compare_model_results.py
 ```
 
-### O que ele gera
+### Saída futura
 
-- `results/summary/summary_by_function.csv`
-- `results/summary/summary_by_run.csv`
-- `results/summary/summary_overall.csv`
+- `paper_assets/model_comparison/model_overall_comparison.csv`
+- `paper_assets/model_comparison/model_overall_comparison.md`
+- `paper_assets/model_comparison/model_by_function_comparison.csv`
+- `paper_assets/model_comparison/model_by_function_comparison.md`
+- `paper_assets/model_comparison/model_comparison_summary.md`
 
-## Como diagnosticar erros comuns
+Se o Pro ainda estiver sem resultados oficiais, o script termina de forma controlada e não inventa comparação.
 
-### O script de geração rodou em `dry-run`
+## Diagnóstico rápido
 
-Isso é o comportamento seguro esperado. Nenhuma chamada real foi feita.
-
-### O runner encontrou apenas placeholders
-
-Isso significa que ainda não há suítes reais prontas para execução.
-
-### O teste existe, mas não executa
-
-Verifique:
-
-- se o arquivo importa a função a partir de `ise26.targets`;
-- se o código tem sintaxe Python válida;
-- se o `status.json` não registra `api_error` ou `not_generated`.
+- se o dry-run falhar, revise o arquivo de configuração informado;
+- se o runner não encontrar suítes reais, confira se o caminho do modelo está correto;
+- se os resumos saírem vazios, verifique se o CSV bruto existe para aquele modelo;
+- se houver mistura entre Flash e Pro, revise o argumento `--model` usado em cada etapa.

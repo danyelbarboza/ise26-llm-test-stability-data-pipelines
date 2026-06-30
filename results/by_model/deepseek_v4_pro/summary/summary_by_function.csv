@@ -1,0 +1,7 @@
+function_id,suite_count,real_suite_count,placeholder_suite_count,target_executions,real_target_executions,placeholder_target_executions,correct_target_executions,bug_target_executions,executability_rate,correct_pass_rate,bug_failure_rate,defect_detection_rate_raw,reliable_defect_detection_rate,false_positive_rate,contaminated_bug_failure_rate,failure_count,bug_failure_count,reliable_defect_detection_count,false_positive_count,contaminated_bug_failure_count,correct_passed_for_same_suite_count,run_count,correct_pass_rate_range,bug_failure_rate_range,defect_detection_rate_raw_range,reliable_defect_detection_rate_range,false_positive_rate_range,contaminated_bug_failure_rate_range,executability_rate_range,generated_line_count_mean,generated_test_function_count_mean,generated_assert_count_mean,imports_tests_fixtures_rate,imports_only_ise26_targets_rate
+F01,5,0,5,20,0,20,0,0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0,0,0,0,0,0,5,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+F02,5,0,5,20,0,20,0,0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0,0,0,0,0,0,5,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+F03,5,0,5,20,0,20,0,0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0,0,0,0,0,0,5,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+F04,5,0,5,20,0,20,0,0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0,0,0,0,0,0,5,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+F05,5,0,5,20,0,20,0,0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0,0,0,0,0,0,5,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+F06,5,0,5,20,0,20,0,0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0,0,0,0,0,0,5,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0

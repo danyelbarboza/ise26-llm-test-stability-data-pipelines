@@ -1,49 +1,28 @@
-# README da pasta `results/raw`
+# Pasta `results/raw`
 
-## O que são resultados brutos
+Esta pasta raiz é mantida apenas para compatibilidade e documentação. Os CSVs oficiais agora ficam em `results/by_model/<modelo>/raw/`.
 
-Resultados brutos são os registros diretos produzidos pelo script `run_generated_tests.py`.
+## O que o CSV bruto registra
 
-## O que é registrado por execução
+Cada linha representa uma execução-alvo de uma suíte gerada contra:
 
-Em geral, cada linha representa a tentativa de executar uma suíte gerada contra uma implementação específica.
-
-Isso inclui, por exemplo:
-
-- função;
-- execução;
-- módulo alvo;
-- tipo de alvo (`correct` ou `buggy`);
-- `bug_id`, quando existir;
-- código de saída;
-- `stdout`;
-- `stderr`;
-- duração;
-- status de executabilidade;
-- informação sobre placeholder ou ausência de teste.
+- a implementação correta;
+- BUG01;
+- BUG02;
+- BUG03.
 
 ## Campos esperados
 
-O CSV bruto pode conter campos como:
+- identificadores da função e da execução;
+- tipo de alvo;
+- estado da suíte;
+- código de saída;
+- sucesso ou falha;
+- métricas derivadas como `bug_failure`, `correct_passed_for_same_suite`, `reliable_defect_detection`, `false_positive` e `contaminated_bug_failure`;
+- contagens estáticas do arquivo gerado, quando disponíveis.
 
-- `function_id`
-- `run_id`
-- `test_file`
-- `test_file_status`
-- `target_module`
-- `target_type`
-- `bug_id`
-- `exit_code`
-- `passed`
-- `stdout`
-- `stderr`
-- `duration_seconds`
-- `executable`
-- `collected_tests`
-- `failure_detected`
+## Atenção
 
-## Cuidado com placeholders
-
-Se a suíte ainda for placeholder, a linha registrada é apenas uma saída técnica da infraestrutura. Ela não deve ser tratada como observação experimental real.
-
-Atualmente, este é o cenário vigente do repositório.
+- placeholders não são resultado experimental real;
+- falhas de sintaxe são registradas separadamente;
+- nunca misture Flash e Pro no mesmo CSV bruto.

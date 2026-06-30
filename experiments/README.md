@@ -1,87 +1,36 @@
-# README da pasta `experiments`
+# Pasta `experiments`
 
-## Papel desta pasta
+Esta pasta concentra o protocolo experimental, os prompts, as configurações de modelo e os testes gerados por LLM.
 
-Esta pasta reúne os artefatos diretamente ligados à execução experimental.
+## O que fica aqui
 
-Aqui ficam:
+- `protocol.md`: regras oficiais do experimento;
+- `prompts/`: prompt padrão e variações documentadas;
+- `config/`: arquivos JSON com parâmetros do modelo;
+- `generated_tests/`: saídas geradas pela LLM, separadas por modelo;
+- `raw_responses/`: resposta bruta, quando usada como artefato de rastreabilidade.
 
-- o protocolo do experimento;
-- a configuração oficial do modelo;
-- os prompts usados para geração;
-- os testes gerados por LLM;
-- a área reservada para respostas brutas legadas ou auxiliares.
+## Organização por modelo
 
-## Papel do protocolo
+Os artefatos gerados por cada modelo devem ficar isolados em subpastas próprias. Hoje o repositório já separa:
 
-O arquivo `protocol.md` descreve as regras do experimento, incluindo:
+- `experiments/generated_tests/deepseek_v4_flash/`
+- `experiments/generated_tests/deepseek_v4_pro/`
 
-- provedor oficial;
-- modelo oficial;
-- parâmetros congelados;
-- regras de rastreabilidade;
-- política de edição manual;
-- métricas e limitações.
+Isso evita misturar a rodada oficial do Flash com futuras rodadas do Pro.
 
-## Papel da configuração
+## Regras importantes
 
-A pasta `config/` guarda a configuração oficial usada pelo gerador.
+- não editar manualmente os testes gerados, salvo quando o protocolo permitir;
+- não inventar testes para preencher pastas vazias;
+- não mudar o prompt oficial no meio de uma rodada;
+- não misturar artefatos de modelos diferentes no mesmo diretório.
 
-No estado atual, o arquivo principal é:
+## Para iniciantes
 
-```text
-experiments/config/deepseek_v4_flash.json
-```
+Se você acabou de entrar no projeto, comece por:
 
-## Papel dos prompts
-
-A pasta `prompts/` guarda o prompt-base oficial.
-
-Esse prompt deve permanecer estável durante a rodada oficial, porque mudar o texto no meio da coleta prejudica a comparabilidade entre execuções.
-
-## Papel dos testes gerados
-
-A pasta `generated_tests/` recebe:
-
-- o `test_generated.py`;
-- o prompt salvo;
-- a resposta bruta salva;
-- os metadados;
-- o status da execução.
-
-## Como salvar respostas de LLM
-
-No fluxo oficial atual, a resposta bruta deve ser salva dentro da própria pasta da execução:
-
-```text
-experiments/generated_tests/F01/run_01/raw_response.txt
-```
-
-A pasta `raw_responses/` pode existir por histórico ou apoio manual, mas não é o caminho oficial da nova infraestrutura automatizada.
-
-## Como organizar múltiplas execuções
-
-Cada função possui cinco execuções planejadas:
-
-- `F01/run_01/`
-- `F01/run_02/`
-- `F01/run_03/`
-- `F01/run_04/`
-- `F01/run_05/`
-
-O mesmo padrão vale para `F02` até `F06`.
-
-## Regra sobre edição manual
-
-O teste gerado não deve ser corrigido manualmente na coleta oficial.
-
-Se a resposta vier em Markdown, a extração do código deve ser mecânica. Se o código vier com sintaxe inválida, ele continua sendo salvo como artefato real da geração.
-
-## Cuidado com rastreabilidade
-
-Nunca deixe um `test_generated.py` sem ligação clara com:
-
-- o prompt utilizado;
-- a resposta bruta recebida;
-- a configuração oficial do modelo;
-- os hashes registrados em `metadata.json`.
+1. ler `protocol.md`;
+2. ler `README.md` na raiz;
+3. verificar `config/` para entender qual modelo está sendo usado;
+4. olhar `generated_tests/` para entender como cada execução é salva.

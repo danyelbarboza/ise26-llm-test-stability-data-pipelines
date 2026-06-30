@@ -14,14 +14,21 @@ import ast
 from pathlib import Path
 from typing import Any
 
-
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
+SRC_ROOT = PROJECT_ROOT / "src"
+if str(SRC_ROOT) not in sys.path:
+    sys.path.insert(0, str(SRC_ROOT))
+
+from ise26.experiment_paths import resolve_generated_tests_root, resolve_results_root
+
+
 CORRECT_MODULE_PATH = PROJECT_ROOT / "src" / "ise26" / "implementations" / "correct.py"
 FUNCTIONS_METADATA_PATH = PROJECT_ROOT / "src" / "ise26" / "metadata" / "functions.json"
 BUGS_METADATA_PATH = PROJECT_ROOT / "src" / "ise26" / "metadata" / "bugs.json"
-GENERATED_TESTS_ROOT = PROJECT_ROOT / "experiments" / "generated_tests"
-RAW_RESULTS_PATH = PROJECT_ROOT / "results" / "raw" / "generated_tests_results.csv"
 RUN_IDS = [f"run_{index:02d}" for index in range(1, 6)]
+DEFAULT_MODEL_NAME = "deepseek_v4_flash"
+GENERATED_TESTS_ROOT = resolve_generated_tests_root(DEFAULT_MODEL_NAME)
+RAW_RESULTS_PATH = resolve_results_root(DEFAULT_MODEL_NAME) / "raw" / "generated_tests_results.csv"
 
 
 def load_json_records(path: Path) -> list[dict[str, Any]]:
@@ -186,7 +193,7 @@ def detect_test_presence(test_file: Path) -> tuple[bool, str]:
     content = test_file.read_text(encoding="utf-8")
     status_path = test_file.with_name("status.json")
     if status_path.exists():
-        with status_path.open("r", encoding="utf-8") as file_handle:
+        with status_path.open("r", encoding="utf-8-sig") as file_handle:
             status_payload = json.load(file_handle)
 
         status_value = str(status_payload.get("status", "")).strip()
@@ -287,14 +294,16 @@ def build_missing_test_result(test_file_status: str) -> dict[str, Any]:
     }
 
 
-def write_results_csv(rows: list[dict[str, Any]]) -> None:
+def write_results_csv(rows: list[dict[str, Any]], raw_results_path: Path | None = None) -> None:
     """Persist execution rows to the raw-results CSV file.
 
     Args:
         rows: Execution rows to serialize.
+        raw_results_path: Optional custom destination path for the CSV file.
     """
 
-    RAW_RESULTS_PATH.parent.mkdir(parents=True, exist_ok=True)
+    target_path = raw_results_path or RAW_RESULTS_PATH
+    target_path.parent.mkdir(parents=True, exist_ok=True)
     fieldnames = [
         "function_id",
         "run_id",
@@ -327,19 +336,20 @@ def write_results_csv(rows: list[dict[str, Any]]) -> None:
         "generated_has_real_suite",
     ]
 
-    with RAW_RESULTS_PATH.open("w", encoding="utf-8", newline="") as file_handle:
+    with target_path.open("w", encoding="utf-8", newline="") as file_handle:
         writer = csv.DictWriter(file_handle, fieldnames=fieldnames)
         writer.writeheader()
         writer.writerows(rows)
 
 
-def collect_execution_rows() -> list[dict[str, Any]]:
+def collect_execution_rows(generated_tests_root: Path | None = None) -> list[dict[str, Any]]:
     """Build raw execution rows for every configured function and run.
 
     Returns:
         A list of raw execution result dictionaries.
     """
 
+    tests_root = generated_tests_root or GENERATED_TESTS_ROOT
     target_matrix = build_target_matrix()
     rows: list[dict[str, Any]] = []
     targets_by_function: dict[str, list[dict[str, Any]]] = defaultdict(list)
@@ -348,7 +358,7 @@ def collect_execution_rows() -> list[dict[str, Any]]:
 
     for function_id, function_targets in targets_by_function.items():
         for run_id in RUN_IDS:
-            test_file = GENERATED_TESTS_ROOT / function_id / run_id / "test_generated.py"
+            test_file = tests_root / function_id / run_id / "test_generated.py"
             has_executable_tests, test_file_status = detect_test_presence(test_file)
             suite_static_analysis = analyze_generated_test_file(test_file, test_file_status)
             suite_rows: list[dict[str, Any]] = []
@@ -405,13 +415,15 @@ def collect_execution_rows() -> list[dict[str, Any]]:
     return rows
 
 
-def print_execution_summary(rows: list[dict[str, Any]]) -> None:
+def print_execution_summary(rows: list[dict[str, Any]], raw_results_path: Path | None = None) -> None:
     """Print a short human-readable summary of the runner output.
 
     Args:
         rows: Raw execution rows produced by the runner.
+        raw_results_path: Optional custom destination path for the CSV file.
     """
 
+    target_path = raw_results_path or RAW_RESULTS_PATH
     executed_rows = sum(1 for row in rows if row["executable"])
     placeholder_rows = sum(1 for row in rows if row["test_file_status"] == "placeholder")
     missing_rows = sum(1 for row in rows if row["test_file_status"] == "missing")
@@ -419,7 +431,7 @@ def print_execution_summary(rows: list[dict[str, Any]]) -> None:
     real_suites = len({(row["function_id"], row["run_id"]) for row in rows if row["suite_is_real_generated"]})
     placeholder_suites = len({(row["function_id"], row["run_id"]) for row in rows if row["suite_is_placeholder"]})
 
-    print(f"Saved raw results to: {RAW_RESULTS_PATH}")
+    print(f"Saved raw results to: {target_path}")
     print(f"Total target executions recorded: {len(rows)}")
     print(f"Real suites detected: {real_suites}")
     print(f"Placeholder suites detected: {placeholder_suites}")
@@ -432,16 +444,51 @@ def print_execution_summary(rows: list[dict[str, Any]]) -> None:
         print("No executable generated tests were found.")
 
 
-def main() -> int:
+def parse_args(argv: list[str] | None = None) -> Any:
+    """Parse command-line arguments for the runner."""
+
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Run generated tests against the configured targets.")
+    parser.add_argument(
+        "--model",
+        default=DEFAULT_MODEL_NAME,
+        help="Model key or model name used to resolve the generated-test and results folders.",
+    )
+    parser.add_argument(
+        "--config",
+        type=Path,
+        help="Optional configuration file used to infer the model name.",
+    )
+    return parser.parse_args(argv)
+
+
+def resolve_model_name(args: Any) -> str:
+    """Resolve the target model name from CLI arguments."""
+
+    if args.config is not None:
+        with args.config.open("r", encoding="utf-8") as file_handle:
+            config = json.load(file_handle)
+        return str(config["model"])
+    return str(args.model)
+
+
+def main(argv: list[str] | None = None) -> int:
     """Run the generated-test execution workflow and write the raw CSV file.
 
     Returns:
         Process exit code suitable for command-line usage.
     """
 
-    rows = collect_execution_rows()
-    write_results_csv(rows)
-    print_execution_summary(rows)
+    args = parse_args(argv)
+    model_name = resolve_model_name(args)
+    generated_tests_root = resolve_generated_tests_root(model_name)
+    results_root = resolve_results_root(model_name)
+    raw_results_path = results_root / "raw" / "generated_tests_results.csv"
+
+    rows = collect_execution_rows(generated_tests_root=generated_tests_root)
+    write_results_csv(rows, raw_results_path=raw_results_path)
+    print_execution_summary(rows, raw_results_path=raw_results_path)
     return 0
 
 

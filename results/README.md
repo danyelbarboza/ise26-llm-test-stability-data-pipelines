@@ -1,43 +1,39 @@
-# README da pasta `results`
+# Pasta `results`
 
-## O que esta pasta contém
+Esta pasta guarda os resultados oficiais do experimento, organizados por modelo.
 
-Esta pasta concentra os arquivos produzidos pelos scripts experimentais.
+## Estrutura
 
-Ela é dividida em:
+```text
+results/
+  by_model/
+    deepseek_v4_flash/
+      raw/
+      summary/
+      reports/
+    deepseek_v4_pro/
+      raw/
+      summary/
+      reports/
+```
 
-- `raw/`
-- `summary/`
+## O que cada subpasta guarda
 
-## Diferença entre `raw` e `summary`
+- `raw/`: CSV detalhado com cada execução-alvo;
+- `summary/`: CSVs agregados por função, por run e no geral;
+- `reports/`: relatórios em Markdown para leitura humana.
 
-### `raw`
+## Estado atual
 
-Contém os resultados brutos, isto é, registros detalhados de execução.
+- a execução oficial do Flash já existe e fica em `results/by_model/deepseek_v4_flash/`;
+- o Pro ainda está apenas preparado estruturalmente;
+- não misture CSVs de modelos diferentes no mesmo arquivo.
 
-Cada linha do CSV bruto representa uma tentativa de rodar uma suíte gerada contra um alvo específico. O arquivo agora separa:
+## Resultados oficiais e comparação
 
-- falha no bug;
-- aprovação na correta para a mesma suíte;
-- detecção confiável;
-- falso positivo;
-- falha contaminada.
+Os resultados comparativos entre Flash e Pro devem ser preparados em `paper_assets/model_comparison/` apenas depois que as duas execuções oficiais existirem.
+O script `scripts/compare_model_results.py` só deve produzir saída quando os dois modelos tiverem resumos oficiais reais; se o Pro ainda estiver apenas com placeholders, ele termina sem gerar números.
 
-### `summary`
+## Atenção
 
-Contém arquivos resumidos e agregados a partir dos resultados brutos.
-
-Os resumos também explicam quantos registros vieram de suítes reais e quantos vieram de placeholders. As métricas principais passam a privilegiar as suítes reais, para evitar interpretar estrutura vazia como resultado experimental.
-
-## Aviso importante sobre placeholders
-
-Se os testes gerados por LLM ainda não existirem e as pastas de `generated_tests/` ainda estiverem com placeholders, os CSVs produzidos aqui não representam resultados experimentais reais.
-
-No estado atual do repositório, os arquivos existentes em `results/` devem ser entendidos dessa forma: são saídas de validação da infraestrutura, não resultados do estudo.
-
-## Como interpretar depois da execução real
-
-Depois que testes reais forem executados:
-
-- `raw/` mostrará cada execução individual;
-- `summary/` ajudará a analisar comportamento por função, por execução e no geral.
+CSV gerado sem testes reais, ou produzido antes da execução oficial, não deve ser tratado como resultado experimental final.

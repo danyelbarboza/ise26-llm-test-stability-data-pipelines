@@ -2,16 +2,26 @@
 
 from __future__ import annotations
 
+import argparse
+import json
+import sys
 from pathlib import Path
 
 import pandas as pd
 
-
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-RAW_RESULTS_PATH = PROJECT_ROOT / "results" / "raw" / "generated_tests_results.csv"
-SUMMARY_BY_FUNCTION_PATH = PROJECT_ROOT / "results" / "summary" / "summary_by_function.csv"
-SUMMARY_BY_RUN_PATH = PROJECT_ROOT / "results" / "summary" / "summary_by_run.csv"
-SUMMARY_OVERALL_PATH = PROJECT_ROOT / "results" / "summary" / "summary_overall.csv"
+SRC_ROOT = PROJECT_ROOT / "src"
+if str(SRC_ROOT) not in sys.path:
+    sys.path.insert(0, str(SRC_ROOT))
+
+from ise26.experiment_paths import resolve_results_root
+
+
+DEFAULT_MODEL_NAME = "deepseek_v4_flash"
+RAW_RESULTS_PATH = resolve_results_root(DEFAULT_MODEL_NAME) / "raw" / "generated_tests_results.csv"
+SUMMARY_BY_FUNCTION_PATH = resolve_results_root(DEFAULT_MODEL_NAME) / "summary" / "summary_by_function.csv"
+SUMMARY_BY_RUN_PATH = resolve_results_root(DEFAULT_MODEL_NAME) / "summary" / "summary_by_run.csv"
+SUMMARY_OVERALL_PATH = resolve_results_root(DEFAULT_MODEL_NAME) / "summary" / "summary_overall.csv"
 
 BOOLEAN_COLUMNS = [
     "passed",
@@ -148,10 +158,11 @@ OVERALL_SUMMARY_COLUMNS = [
 ]
 
 
-def ensure_summary_directory() -> None:
+def ensure_summary_directory(summary_directory: Path | None = None) -> None:
     """Ensure that the summary output directory exists."""
 
-    SUMMARY_BY_FUNCTION_PATH.parent.mkdir(parents=True, exist_ok=True)
+    target_directory = summary_directory or SUMMARY_BY_FUNCTION_PATH.parent
+    target_directory.mkdir(parents=True, exist_ok=True)
 
 
 def build_empty_summary_frame(columns: list[str]) -> pd.DataFrame:
@@ -245,17 +256,18 @@ def prepare_raw_results(raw_results: pd.DataFrame) -> pd.DataFrame:
     return prepared
 
 
-def load_raw_results() -> pd.DataFrame:
+def load_raw_results(raw_results_path: Path | None = None) -> pd.DataFrame:
     """Load raw execution results and normalize key analysis columns.
 
     Returns:
         A DataFrame ready for aggregation. Missing files yield an empty frame.
     """
 
-    if not RAW_RESULTS_PATH.exists():
+    target_path = raw_results_path or RAW_RESULTS_PATH
+    if not target_path.exists():
         return pd.DataFrame()
 
-    raw_results = pd.read_csv(RAW_RESULTS_PATH)
+    raw_results = pd.read_csv(target_path)
     if raw_results.empty:
         return raw_results
 
@@ -489,6 +501,10 @@ def write_summary_outputs(
     function_summary: pd.DataFrame,
     run_summary: pd.DataFrame,
     overall_summary: pd.DataFrame,
+    *,
+    summary_by_function_path: Path | None = None,
+    summary_by_run_path: Path | None = None,
+    summary_overall_path: Path | None = None,
 ) -> None:
     """Write the computed summary DataFrames to CSV files.
 
@@ -496,35 +512,89 @@ def write_summary_outputs(
         function_summary: Summary grouped by function.
         run_summary: Summary grouped by function and run.
         overall_summary: Overall summary row.
+        summary_by_function_path: Optional destination for the function summary CSV.
+        summary_by_run_path: Optional destination for the run summary CSV.
+        summary_overall_path: Optional destination for the overall summary CSV.
     """
 
-    function_summary.to_csv(SUMMARY_BY_FUNCTION_PATH, index=False)
-    run_summary.to_csv(SUMMARY_BY_RUN_PATH, index=False)
-    overall_summary.to_csv(SUMMARY_OVERALL_PATH, index=False)
+    function_summary.to_csv(summary_by_function_path or SUMMARY_BY_FUNCTION_PATH, index=False)
+    run_summary.to_csv(summary_by_run_path or SUMMARY_BY_RUN_PATH, index=False)
+    overall_summary.to_csv(summary_overall_path or SUMMARY_OVERALL_PATH, index=False)
 
 
-def print_summary_locations() -> None:
+def print_summary_locations(
+    *,
+    summary_by_function_path: Path | None = None,
+    summary_by_run_path: Path | None = None,
+    summary_overall_path: Path | None = None,
+) -> None:
     """Print the output paths of the generated summary files."""
 
-    print(f"Saved function summary to: {SUMMARY_BY_FUNCTION_PATH}")
-    print(f"Saved run summary to: {SUMMARY_BY_RUN_PATH}")
-    print(f"Saved overall summary to: {SUMMARY_OVERALL_PATH}")
+    print(f"Saved function summary to: {summary_by_function_path or SUMMARY_BY_FUNCTION_PATH}")
+    print(f"Saved run summary to: {summary_by_run_path or SUMMARY_BY_RUN_PATH}")
+    print(f"Saved overall summary to: {summary_overall_path or SUMMARY_OVERALL_PATH}")
 
 
-def main() -> int:
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    """Parse command-line arguments for the summary workflow."""
+
+    parser = argparse.ArgumentParser(description="Summarize generated-test results.")
+    parser.add_argument(
+        "--model",
+        default=DEFAULT_MODEL_NAME,
+        help="Model key or model name used to resolve the raw-results and summary folders.",
+    )
+    parser.add_argument(
+        "--config",
+        type=Path,
+        help="Optional configuration file used to infer the model name.",
+    )
+    return parser.parse_args(argv)
+
+
+def resolve_model_name(args: argparse.Namespace) -> str:
+    """Resolve the target model name from CLI arguments."""
+
+    if args.config is not None:
+        with args.config.open("r", encoding="utf-8") as file_handle:
+            config = json.load(file_handle)
+        return str(config["model"])
+    return str(args.model)
+
+
+def main(argv: list[str] | None = None) -> int:
     """Load raw results, compute summaries, and persist the CSV reports.
 
     Returns:
         Process exit code suitable for command-line usage.
     """
 
-    ensure_summary_directory()
-    raw_results = load_raw_results()
+    args = parse_args(argv)
+    model_name = resolve_model_name(args)
+    results_root = resolve_results_root(model_name)
+    raw_results_path = results_root / "raw" / "generated_tests_results.csv"
+    summary_by_function_path = results_root / "summary" / "summary_by_function.csv"
+    summary_by_run_path = results_root / "summary" / "summary_by_run.csv"
+    summary_overall_path = results_root / "summary" / "summary_overall.csv"
+
+    ensure_summary_directory(summary_by_function_path.parent)
+    raw_results = load_raw_results(raw_results_path)
     run_summary = compute_run_level_metrics(raw_results)
     function_summary = compute_function_level_metrics(raw_results, run_summary)
     overall_summary = compute_overall_metrics(raw_results, run_summary)
-    write_summary_outputs(function_summary, run_summary, overall_summary)
-    print_summary_locations()
+    write_summary_outputs(
+        function_summary,
+        run_summary,
+        overall_summary,
+        summary_by_function_path=summary_by_function_path,
+        summary_by_run_path=summary_by_run_path,
+        summary_overall_path=summary_overall_path,
+    )
+    print_summary_locations(
+        summary_by_function_path=summary_by_function_path,
+        summary_by_run_path=summary_by_run_path,
+        summary_overall_path=summary_overall_path,
+    )
 
     if raw_results.empty:
         print("Raw results were empty or unavailable; empty summary files were created.")

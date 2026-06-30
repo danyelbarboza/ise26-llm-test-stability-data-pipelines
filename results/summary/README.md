@@ -1,25 +1,25 @@
-# README da pasta `results/summary`
+# Pasta `results/summary`
 
-## O que são resultados resumidos
+Esta pasta raiz é mantida apenas para compatibilidade e documentação. Os resumos oficiais agora ficam em `results/by_model/<modelo>/summary/`.
 
-Resultados resumidos são arquivos gerados a partir dos resultados brutos para facilitar leitura e análise.
+## Arquivos esperados
 
-## Papel do resumo por função
+- `summary_by_function.csv`
+- `summary_by_run.csv`
+- `summary_overall.csv`
 
-O arquivo `summary_by_function.csv` ajuda a observar o comportamento agregado por função.
+## O que os resumos mostram
 
-## Papel do resumo por execução
+- `summary_by_function.csv`: visão consolidada por função;
+- `summary_by_run.csv`: visão consolidada por função e execução;
+- `summary_overall.csv`: visão geral do modelo.
 
-O arquivo `summary_by_run.csv` ajuda a observar variação entre execuções de uma mesma geração experimental.
+## Métricas principais
 
-## Papel do resumo geral
+- `reliable_defect_detection_rate` é a métrica principal;
+- `defect_detection_rate_raw` é auxiliar e não deve ser usada sozinha;
+- `false_positive_rate` e `contaminated_bug_failure_rate` ajudam a interpretar o resultado.
 
-O arquivo `summary_overall.csv` apresenta uma visão consolidada do conjunto inteiro.
+## Atenção
 
-## Aviso importante
-
-Esses arquivos só têm valor experimental real depois que testes gerados de verdade forem executados.
-
-Se a base ainda estiver usando placeholders, os resumos devem ser lidos apenas como validação da infraestrutura de scripts.
-
-No estado atual do projeto, os resumos existentes ainda estão nessa condição.
+Os resumos só têm valor experimental quando são derivados de suítes reais e não de placeholders.

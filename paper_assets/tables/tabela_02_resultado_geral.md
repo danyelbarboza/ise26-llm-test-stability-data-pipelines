@@ -1,0 +1,7 @@
+# Tabela 2 - Resultado geral
+
+Resumo consolidado da execucao oficial.
+
+| suites_planejadas | suites_geradas | suites_executaveis | sintaxe_invalida | execucoes_alvo | execucoes_reais | correct_pass_rate | false_positive_rate | defect_detection_rate_raw | reliable_defect_detection_rate | contaminated_bug_failure_rate |
+| ----------------- | -------------- | ------------------ | ---------------- | -------------- | --------------- | ----------------- | ------------------- | ------------------------- | ------------------------------ | ----------------------------- |
+| 30                | 30             | 29                 | 1                | 120            | 116             | 0.413793          | 0.586207            | 1.000000                  | 0.413793                       | 0.586207                      |

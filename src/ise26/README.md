@@ -11,6 +11,7 @@ Ele organiza, em um único lugar:
 - os metadados das funções e dos bugs;
 - a superfície estável de importação em `targets.py`;
 - a infraestrutura de geração reproduzível em `llm/`.
+- os helpers de caminho e separação por modelo em `experiment_paths.py`.
 
 ## Subpastas principais
 
@@ -43,6 +44,7 @@ Expõe sempre os mesmos nomes públicos para os testes gerados, enquanto escolhe
 - `metadata/bugs.json` lista os bugs oficiais.
 - `llm/` prepara chamadas independentes, rastreáveis e sem histórico.
 - `targets.py` usa `ISE26_TARGET_MODULE` para expor a implementação correta ou uma variante defeituosa sem alterar o arquivo do teste.
+- `experiment_paths.py` resolve caminhos separados para cada modelo, evitando mistura entre Flash e Pro.
 
 ## Cuidados importantes
 

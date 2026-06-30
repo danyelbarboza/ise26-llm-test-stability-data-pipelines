@@ -1,280 +1,111 @@
-# Protocolo experimental do ISE26
+# Protocolo experimental ISE26
 
 ## Objetivo
 
-Este protocolo descreve como conduzir a geração e a execução de testes automatizados produzidos por LLM para as funções de transformação de dados do projeto ISE26.
-
-O foco é garantir:
-
-- rastreabilidade;
-- reprodutibilidade;
-- comparabilidade entre execuções;
-- separação clara entre placeholder estrutural e dado experimental real.
+Avaliarmos a estabilidade de testes automatizados gerados por LLM para funções de transformação de dados em Python.
 
 ## Escopo
 
-- Quantidade de funções-alvo: `6`
-- Quantidade de execuções planejadas por função: `5`
-- Quantidade total planejada de chamadas reais à LLM: `30`
-- Quantidade de alvos de execução por suíte gerada: `4`
-  - `1` implementação correta
-  - `3` versões defeituosas
+- 6 funções corretas oficiais;
+- 18 versões defeituosas intencionais;
+- 5 execuções por função;
+- 30 suítes planejadas por modelo;
+- execução da suíte contra a implementação correta e contra BUG01, BUG02 e BUG03.
 
-## Observação sobre dados sintéticos internos
+## Modelos oficiais
 
-O repositório possui `DataFrame`s sintéticos em `tests/fixtures.py` para apoiar apenas a validação interna da base.
+- DeepSeek V4-Flash: execução oficial concluída e preservada;
+- DeepSeek V4-Pro: estrutura preparada, sem execução oficial ainda.
 
-Esses dados:
+## Comparação entre modelos
 
-- não fazem parte dos resultados experimentais;
-- não devem ser tratados como material gerado por LLM;
-- não substituem os dados criados dentro dos testes gerados pela LLM.
+A comparação entre Flash e Pro só é válida quando ambos tiverem execução oficial completa, usando exatamente o mesmo protocolo, os mesmos prompts e os mesmos parâmetros, mudando apenas o nome do modelo e a pasta de saída.
 
-Salvo mudança metodológica futura devidamente registrada, cada teste gerado por LLM deve definir seus próprios dados no próprio arquivo de teste.
+## Configuração oficial
 
-O prompt oficial também deve reforçar que a LLM não deve importar `tests/fixtures.py`.
-
-## Funções usadas
-
-As funções oficiais do experimento são:
-
-- `clean_customer_names`
-- `deduplicate_events`
-- `calculate_monthly_revenue`
-- `join_customers_orders`
-- `validate_schema`
-- `classify_payment_status`
-
-## Provedor e modelo oficiais
-
-- Provedor: `DeepSeek`
-- Modelo: `deepseek-v4-flash`
-- Base URL: `https://api.deepseek.com`
-- Formato da API: compatível com OpenAI
-- Chave: variável de ambiente `DEEPSEEK_API_KEY`
-
-## Parâmetros oficiais da geração
-
-- `temperature = 0.7`
-- `top_p = 1.0`
-- `max_tokens = 4096`
-- `stream = false`
-- política de histórico: `sem histórico entre chamadas`
-- política de edição manual: `salvar resposta bruta; extrair código mecanicamente; não corrigir manualmente o teste gerado`
-
-## Arquivo oficial de configuração
-
-O arquivo congelado para a rodada atual é:
-
-```text
-experiments/config/deepseek_v4_flash.json
-```
-
-Se esse arquivo mudar antes ou durante a coleta oficial, a mudança precisa ser registrada explicitamente.
+- Provedor: DeepSeek;
+- Base URL: `https://api.deepseek.com`;
+- Modelo Flash: `deepseek-v4-flash`;
+- Modelo Pro: `deepseek-v4-pro`;
+- Temperatura: `0.7`;
+- Top-p: `1.0`;
+- Max tokens: `4096`;
+- Histórico entre chamadas: desativado;
+- Estado padrão do script de geração: `dry-run`.
 
 ## Prompt padrão
 
-- Arquivo do prompt: `experiments/prompts/test_generation_prompt_template.md`
-- O mesmo prompt-base deve ser usado em todas as execuções oficiais da mesma rodada.
-- Cada chamada deve ser independente.
-- O modelo não deve receber histórico de chamadas anteriores.
+O prompt oficial pede:
 
-## Regra sobre edição dos testes gerados
+- saída somente em código Python;
+- uso de Pytest;
+- importação exclusiva de `ise26.targets`;
+- criação de dados sintéticos dentro do próprio `test_generated.py`;
+- cobertura de casos comuns e de borda;
+- respeito às regras de nulos, datas, schema e negócio quando aplicável.
 
-- O teste gerado não deve ser editado manualmente durante a coleta oficial.
-- A resposta bruta da LLM deve ser salva antes de qualquer extração.
-- A extração do código para `test_generated.py` deve ser mecânica.
-- Não é permitido “consertar” logicamente um teste gerado para fazê-lo passar ou executar.
+## Regra sobre edição dos testes
 
-## Estrutura oficial de salvamento por execução
+- os testes gerados por LLM não devem ser editados manualmente;
+- se houver correção metodológica futura, ela deve ser registrada no protocolo e versionada separadamente;
+- fixtures do repositório são exclusivas dos testes internos.
 
-Cada execução real deve salvar artefatos em:
+## Estrutura de salvamento
 
-```text
-experiments/generated_tests/FXX/run_YY/
-```
+Cada modelo recebe sua própria árvore de artefatos:
 
-Arquivos obrigatórios:
+- `experiments/generated_tests/deepseek_v4_flash/`
+- `experiments/generated_tests/deepseek_v4_pro/`
 
-- `system_prompt.txt`
-- `prompt.txt`
-- `request.json`
-- `raw_response.txt`
-- `test_generated.py`
-- `metadata.json`
-- `status.json`
+Os resultados também são separados por modelo:
 
-## Manifesto geral de geração
+- `results/by_model/deepseek_v4_flash/`
+- `results/by_model/deepseek_v4_pro/`
 
-Cada tentativa de geração real deve registrar uma linha em:
+## Critérios de validade
 
-```text
-experiments/generated_tests/manifest.csv
-```
+Uma execução é considerada válida quando:
 
-Campos esperados:
+- a suíte existe;
+- o arquivo tem sintaxe válida;
+- a resposta bruta foi salva;
+- o código extraído foi salvo;
+- os metadados e status foram registrados.
 
-- `function_id`
-- `function_name`
-- `run_id`
-- `provider`
-- `model`
-- `temperature`
-- `top_p`
-- `max_tokens`
-- `timestamp_utc`
-- `status`
-- `syntax_valid`
-- `prompt_hash`
-- `response_hash`
-- `output_path`
-- `error_summary`
-- `input_tokens`
-- `output_tokens`
-- `total_tokens`
+Uma execução é considerada inválida quando:
 
-## Critérios para classificar uma tentativa de geração
+- a chamada à API falha;
+- o arquivo final tem sintaxe inválida;
+- o teste não define suíte executável.
 
-### Execução válida
-
-Uma tentativa é válida para análise quando:
-
-- a chamada real foi feita com a configuração oficial;
-- existe `raw_response.txt`;
-- existe `test_generated.py` correspondente;
-- existe `metadata.json` com hashes e parâmetros;
-- o status não é placeholder nem erro estrutural.
-
-### Execução inválida
-
-Uma tentativa deve ser tratada como inválida quando:
-
-- houve edição manual não documentada;
-- o vínculo entre resposta bruta e teste salvo foi perdido;
-- a configuração usada não corresponde à rodada oficial;
-- o código salvo não representa a resposta recebida.
-
-### Execução placeholder
-
-Uma execução é apenas placeholder quando:
-
-- a pasta existe só para manter a estrutura;
-- ainda não houve chamada real à LLM;
-- o `test_generated.py` ainda contém apenas marcador estrutural.
-
-### Status registrados em `status.json`
-
-Os estados oficiais são:
-
-- `not_generated`
-- `generated_syntax_valid`
-- `generated_syntax_invalid`
-- `api_error`
-
-O estado `generated_syntax_valid` significa apenas que o código extraído passou na validação sintática. Ele não implica aprovação na implementação correta nem detecção confiável de defeito.
-
-## Runner experimental
-
-O script:
-
-```bash
-python scripts/run_generated_tests.py
-```
-
-deve executar cada suíte real contra:
-
-- a implementação correta;
-- `BUG01`;
-- `BUG02`;
-- `BUG03`.
-
-O runner não deve tratar placeholder como dado real e deve registrar de forma controlada:
-
-- teste ausente;
-- teste placeholder;
-- teste com sintaxe inválida;
-- erro de API em geração anterior.
-
-Na leitura metodológica do CSV bruto:
-
-- `bug_failure` indica falha contra a versão defeituosa;
-- `correct_passed_for_same_suite` indica que a mesma suíte passou na correta;
-- `reliable_defect_detection` indica falha no bug e aprovação na correta;
-- `false_positive` indica falha na correta;
-- `contaminated_bug_failure` indica falha no bug com contaminação pela falha na correta.
-
-## Resultados experimentais
-
-### Resultados brutos
-
-Salvar em:
-
-```text
-results/raw/generated_tests_results.csv
-```
-
-### Resultados resumidos
-
-Salvar em:
-
-```text
-results/summary/summary_by_function.csv
-results/summary/summary_by_run.csv
-results/summary/summary_overall.csv
-```
+Um placeholder não é resultado experimental real e não deve ser tratado como tal nos resumos.
 
 ## Métricas registradas
 
-As métricas principais incluem:
-
 - executabilidade;
-- taxa de aprovação na implementação correta;
-- falha bruta em versão defeituosa (`defect_detection_rate_raw`);
-- detecção confiável de defeito (`reliable_defect_detection_rate`);
-- taxa de falso positivo (`false_positive_rate`);
-- contagem de falhas contaminadas (`contaminated_bug_failure_count`);
-- número de testes coletados;
-- número de `asserts`, quando medido;
-- número de linhas do teste;
-- número de funções `test_*`;
-- indicação de importação de `tests.fixtures`;
-- indicação de importação apenas de `ise26.targets`;
-- variação entre execuções;
-- quantidade de falhas por função;
-- observações qualitativas.
+- passagem na correta;
+- falha bruta contra bug;
+- `reliable_defect_detection_rate`;
+- `false_positive_rate`;
+- `contaminated_bug_failure_rate`;
+- número de linhas do teste gerado;
+- número aproximado de funções de teste;
+- número aproximado de asserts;
+- contagem de imports para `tests.fixtures`;
+- contagem de imports limitados a `ise26.targets`.
 
-## Limitações que devem ser registradas
+## Interpretação metodológica
 
-- teste ausente;
-- placeholder;
-- erro de API;
-- sintaxe inválida;
-- extração mecânica sem teste executável;
-- incompatibilidade de ambiente;
-- ambiguidade do prompt;
-- alteração indevida de configuração;
-- edição manual indevida.
-- placeholder estrutural;
-- suíte que falha na correta e, por isso, não deve ser contada como detecção confiável.
+- falhar contra bug não basta para contar detecção de defeito;
+- a mesma suíte precisa passar na correta para a detecção ser confiável;
+- falha na correta deve ser tratada como falso positivo;
+- falha contra bug com falha na correta é resultado contaminado;
+- `reliable_defect_detection_rate` é a métrica principal;
+- `defect_detection_rate_raw` é auxiliar e não deve ser usada sozinha.
 
-## Procedimento experimental recomendado
+## Limitações
 
-1. Rodar `python -m pytest`.
-2. Revisar este protocolo.
-3. Configurar `.env` local com `DEEPSEEK_API_KEY`.
-4. Rodar `python scripts/generate_llm_tests.py --dry-run`.
-5. Confirmar função, execução e quantidade de chamadas planejadas.
-6. Rodar `python scripts/generate_llm_tests.py --execute` apenas quando a rodada oficial começar, sem combinar `--dry-run` e `--execute`.
-7. Rodar `python scripts/run_generated_tests.py`.
-8. Rodar `python scripts/summarize_results.py`.
-9. Registrar observações e limitações.
-
-## Integridade dos dados
-
-- Não inventar testes gerados por LLM.
-- Não inventar resultados experimentais.
-- Não misturar testes internos com testes gerados.
-- Não mudar o prompt no meio da rodada oficial.
-- Não mudar a configuração do modelo no meio da rodada oficial.
-- Não apagar artefatos sem registrar.
-- Não registrar a chave da API em arquivos do repositório.
+- os dados gerados pela LLM podem variar entre execuções;
+- testes com sintaxe inválida não entram como execução real;
+- placeholders são úteis para preparação da estrutura, mas não contam como resultado oficial;
+- comparação entre Flash e Pro só deve ocorrer quando ambos tiverem execução oficial completa.

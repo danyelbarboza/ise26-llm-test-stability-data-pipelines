@@ -15,6 +15,7 @@ SRC_ROOT = PROJECT_ROOT / "src"
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
+from ise26.experiment_paths import resolve_generated_tests_root
 from ise26.implementations import correct
 from ise26.llm.code_extraction import extract_python_code
 from ise26.llm.deepseek_client import call_deepseek
@@ -28,11 +29,9 @@ from ise26.llm.reproducibility import (
     load_json_configuration,
 )
 
-CONFIG_PATH = PROJECT_ROOT / "experiments" / "config" / "deepseek_v4_flash.json"
+DEFAULT_CONFIG_PATH = PROJECT_ROOT / "experiments" / "config" / "deepseek_v4_flash.json"
 CORRECT_MODULE_PATH = PROJECT_ROOT / "src" / "ise26" / "implementations" / "correct.py"
 FUNCTIONS_METADATA_PATH = PROJECT_ROOT / "src" / "ise26" / "metadata" / "functions.json"
-GENERATED_TESTS_ROOT = PROJECT_ROOT / "experiments" / "generated_tests"
-MANIFEST_PATH = GENERATED_TESTS_ROOT / "manifest.csv"
 PLACEHOLDER_MARKER = "GENERATED_TEST_PLACEHOLDER"
 RUN_IDS = [f"run_{index:02d}" for index in range(1, 6)]
 MANIFEST_FIELDNAMES = [
@@ -77,6 +76,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
     parser = argparse.ArgumentParser(
         description="Generate Pytest suites with DeepSeek for the ISE26 experiment."
+    )
+    parser.add_argument(
+        "--config",
+        type=Path,
+        default=DEFAULT_CONFIG_PATH,
+        help="Path to the model configuration JSON file.",
     )
     mode_group = parser.add_mutually_exclusive_group()
     mode_group.add_argument(
@@ -140,6 +145,7 @@ def get_function_object(function_name: str) -> Any:
 def build_generation_plan(
     function_id: str | None,
     run_id: str | None,
+    generated_tests_root: Path,
 ) -> list[dict[str, Any]]:
     """Build the list of generation attempts for the selected filters."""
 
@@ -154,7 +160,7 @@ def build_generation_plan(
         function_docstring = inspect.getdoc(function_object) or ""
 
         for selected_run_id in selected_runs:
-            output_directory = GENERATED_TESTS_ROOT / function_record["id"] / selected_run_id
+            output_directory = generated_tests_root / function_record["id"] / selected_run_id
             plan.append(
                 {
                     "function_record": function_record,
@@ -186,8 +192,19 @@ def outputs_already_generated(output_directory: Path) -> bool:
     metadata_path = output_directory / "metadata.json"
     status_path = output_directory / "status.json"
 
-    if metadata_path.exists() or status_path.exists():
+    if metadata_path.exists():
         return True
+
+    if status_path.exists():
+        try:
+            status_payload = json.loads(status_path.read_text(encoding="utf-8-sig"))
+        except json.JSONDecodeError:
+            return True
+
+        status_value = str(status_payload.get("status", "")).strip()
+        if status_value not in {"placeholder", "not_generated"}:
+            return True
+        return False
 
     if test_file_path.exists() and not is_placeholder_test_file(test_file_path):
         return True
@@ -289,13 +306,13 @@ def build_metadata_payload(
     }
 
 
-def rewrite_manifest_with_current_schema() -> None:
+def rewrite_manifest_with_current_schema(manifest_path: Path) -> None:
     """Rewrite the manifest so older rows follow the current column layout."""
 
-    if not MANIFEST_PATH.exists():
+    if not manifest_path.exists():
         return
 
-    with MANIFEST_PATH.open("r", encoding="utf-8", newline="") as file_handle:
+    with manifest_path.open("r", encoding="utf-8", newline="") as file_handle:
         reader = csv.DictReader(file_handle)
         existing_rows = list(reader)
         existing_fieldnames = reader.fieldnames or []
@@ -303,22 +320,22 @@ def rewrite_manifest_with_current_schema() -> None:
     if existing_fieldnames == MANIFEST_FIELDNAMES:
         return
 
-    MANIFEST_PATH.parent.mkdir(parents=True, exist_ok=True)
-    with MANIFEST_PATH.open("w", encoding="utf-8", newline="") as file_handle:
+    manifest_path.parent.mkdir(parents=True, exist_ok=True)
+    with manifest_path.open("w", encoding="utf-8", newline="") as file_handle:
         writer = csv.DictWriter(file_handle, fieldnames=MANIFEST_FIELDNAMES)
         writer.writeheader()
         for row in existing_rows:
             writer.writerow({field: row.get(field, "") for field in MANIFEST_FIELDNAMES})
 
 
-def append_manifest_row(row: dict[str, Any]) -> None:
+def append_manifest_row(manifest_path: Path, row: dict[str, Any]) -> None:
     """Append one generation-attempt row to the manifest CSV."""
 
-    MANIFEST_PATH.parent.mkdir(parents=True, exist_ok=True)
-    rewrite_manifest_with_current_schema()
-    write_header = not MANIFEST_PATH.exists()
+    manifest_path.parent.mkdir(parents=True, exist_ok=True)
+    rewrite_manifest_with_current_schema(manifest_path)
+    write_header = not manifest_path.exists()
 
-    with MANIFEST_PATH.open("a", encoding="utf-8", newline="") as file_handle:
+    with manifest_path.open("a", encoding="utf-8", newline="") as file_handle:
         writer = csv.DictWriter(file_handle, fieldnames=MANIFEST_FIELDNAMES)
         if write_header:
             writer.writeheader()
@@ -520,8 +537,11 @@ def main(argv: list[str] | None = None) -> int:
 
     args = parse_args(argv)
     load_environment_file()
-    config = load_json_configuration(CONFIG_PATH)
-    plan = build_generation_plan(args.function_id, args.run_id)
+    config_path = args.config
+    config = load_json_configuration(config_path)
+    generated_tests_root = resolve_generated_tests_root(config["model"])
+    manifest_path = generated_tests_root / "manifest.csv"
+    plan = build_generation_plan(args.function_id, args.run_id, generated_tests_root)
     execute = bool(args.execute)
     dry_run = bool(args.dry_run or not execute)
     overwrite_used = bool(args.overwrite)
@@ -552,7 +572,7 @@ def main(argv: list[str] | None = None) -> int:
             overwrite_used,
         )
         manifest_rows.append(manifest_row)
-        append_manifest_row(manifest_row)
+        append_manifest_row(manifest_path, manifest_row)
         print(
             f"Recorded generation for {manifest_row['function_id']} {manifest_row['run_id']}: "
             f"{manifest_row['status']}"
@@ -561,7 +581,7 @@ def main(argv: list[str] | None = None) -> int:
     if not manifest_rows:
         print("No generation attempts were executed.")
     else:
-        print(f"Manifest updated at: {MANIFEST_PATH}")
+        print(f"Manifest updated at: {manifest_path}")
 
     return 0
 
