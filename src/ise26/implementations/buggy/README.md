@@ -36,7 +36,7 @@ Exemplos:
 - `F01` a `F06` identificam as funções corretas oficiais.
 - `BUG01` a `BUG03` identificam as três variantes defeituosas de cada função.
 
-## Tabela dos 18 bugs
+## Tabela dos 30 bugs
 
 | Função | Arquivo | Bug | Descrição |
 |---|---|---|---|
@@ -58,6 +58,18 @@ Exemplos:
 | F06 | `f06_bug01.py` | BUG01 | Marca pagamento no vencimento como atraso |
 | F06 | `f06_bug02.py` | BUG02 | Trata `amount` zero como pendente |
 | F06 | `f06_bug03.py` | BUG03 | Trata `paid_date` inválido como ausência de pagamento |
+| F07 | `f07_bug01.py` | BUG01 | Mantém só o primeiro item |
+| F07 | `f07_bug02.py` | BUG02 | Soma em vez de multiplicar |
+| F07 | `f07_bug03.py` | BUG03 | Emite linha para JSON inválido |
+| F08 | `f08_bug01.py` | BUG01 | Inverte a fórmula |
+| F08 | `f08_bug02.py` | BUG02 | Não protege divisão por zero |
+| F08 | `f08_bug03.py` | BUG03 | Calcula taxa antes de agregar |
+| F09 | `f09_bug01.py` | BUG01 | Usa média/desvio |
+| F09 | `f09_bug02.py` | BUG02 | Troca nulos por zero |
+| F09 | `f09_bug03.py` | BUG03 | Sobrescreve a coluna original |
+| F10 | `f10_bug01.py` | BUG01 | Interpreta separadores brasileiros errado |
+| F10 | `f10_bug02.py` | BUG02 | Usa zero para inválidos |
+| F10 | `f10_bug03.py` | BUG03 | Não trata `R$` |
 
 ## Avisos importantes
 

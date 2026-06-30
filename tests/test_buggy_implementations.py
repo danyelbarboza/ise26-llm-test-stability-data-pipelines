@@ -11,12 +11,16 @@ import pytest
 
 from ise26.implementations import correct
 from tests.fixtures import (
+    conversion_events_df,
     customer_names_dirty_df,
+    currency_values_df,
     customers_for_join_df,
     events_with_duplicates_df,
     expected_schema_definition,
     extra_column_schema_df,
+    outlier_amounts_df,
     missing_column_schema_df,
+    order_items_json_df,
     orders_for_join_df,
     orders_for_monthly_revenue_df,
     payment_reference_date,
@@ -211,6 +215,114 @@ def _run_f06_bug03(module: Any) -> bool:
     )
 
 
+def _run_f07_bug01(module: Any) -> bool:
+    """Exercise F07 bug 01 with an order that contains multiple items."""
+
+    source = order_items_json_df().iloc[[0]].reset_index(drop=True)
+    return _dataframes_differ(
+        correct.parse_order_items_json(source),
+        module.parse_order_items_json(source),
+    )
+
+
+def _run_f07_bug02(module: Any) -> bool:
+    """Exercise F07 bug 02 with a multi-item order."""
+
+    source = order_items_json_df().iloc[[0, 1]].reset_index(drop=True)
+    return _dataframes_differ(
+        correct.parse_order_items_json(source),
+        module.parse_order_items_json(source),
+    )
+
+
+def _run_f07_bug03(module: Any) -> bool:
+    """Exercise F07 bug 03 with malformed and empty payload rows."""
+
+    source = order_items_json_df().iloc[[2, 3, 4]].reset_index(drop=True)
+    return _dataframes_differ(
+        correct.parse_order_items_json(source),
+        module.parse_order_items_json(source),
+    )
+
+
+def _run_f08_bug01(module: Any) -> bool:
+    """Exercise F08 bug 01 with a simple conversion group."""
+
+    source = pd.DataFrame({"channel": ["search"], "visits": [20], "conversions": [5]})
+    return _dataframes_differ(correct.calculate_conversion_rate(source), module.calculate_conversion_rate(source))
+
+
+def _run_f08_bug02(module: Any) -> bool:
+    """Exercise F08 bug 02 with a zero-visit scenario."""
+
+    source = pd.DataFrame({"channel": ["zero"], "visits": [0], "conversions": [5]})
+    return _dataframes_differ(correct.calculate_conversion_rate(source), module.calculate_conversion_rate(source))
+
+
+def _run_f08_bug03(module: Any) -> bool:
+    """Exercise F08 bug 03 with multiple rows in the same group."""
+
+    source = pd.DataFrame(
+        {
+            "channel": ["search", "search"],
+            "visits": [100, 20],
+            "conversions": [10, 10],
+        }
+    )
+    return _dataframes_differ(correct.calculate_conversion_rate(source), module.calculate_conversion_rate(source))
+
+
+def _run_f09_bug01(module: Any) -> bool:
+    """Exercise F09 bug 01 with a strong outlier."""
+
+    source = outlier_amounts_df()
+    return _dataframes_differ(correct.cap_outliers_iqr(source), module.cap_outliers_iqr(source))
+
+
+def _run_f09_bug02(module: Any) -> bool:
+    """Exercise F09 bug 02 with missing values in the source column."""
+
+    source = outlier_amounts_df().iloc[[0, 7, 8]].reset_index(drop=True)
+    return _dataframes_differ(correct.cap_outliers_iqr(source), module.cap_outliers_iqr(source))
+
+
+def _run_f09_bug03(module: Any) -> bool:
+    """Exercise F09 bug 03 with a column-name preservation check."""
+
+    source = outlier_amounts_df().iloc[[0, 1, 2, 3]].reset_index(drop=True)
+    return _dataframes_differ(correct.cap_outliers_iqr(source), module.cap_outliers_iqr(source))
+
+
+def _run_f10_bug01(module: Any) -> bool:
+    """Exercise F10 bug 01 with a Brazilian currency value."""
+
+    source = currency_values_df().iloc[[0]].reset_index(drop=True)
+    return _dataframes_differ(
+        correct.standardize_currency_values(source),
+        module.standardize_currency_values(source),
+    )
+
+
+def _run_f10_bug02(module: Any) -> bool:
+    """Exercise F10 bug 02 with blank and invalid currency values."""
+
+    source = currency_values_df().iloc[[4, 5, 6]].reset_index(drop=True)
+    return _dataframes_differ(
+        correct.standardize_currency_values(source),
+        module.standardize_currency_values(source),
+    )
+
+
+def _run_f10_bug03(module: Any) -> bool:
+    """Exercise F10 bug 03 with a prefixed currency value."""
+
+    source = currency_values_df().iloc[[0]].reset_index(drop=True)
+    return _dataframes_differ(
+        correct.standardize_currency_values(source),
+        module.standardize_currency_values(source),
+    )
+
+
 BUG_RUNNERS: list[tuple[str, Callable[[Any], bool]]] = [
     ("ise26.implementations.buggy.f01_bug01", _run_f01_bug01),
     ("ise26.implementations.buggy.f01_bug02", _run_f01_bug02),
@@ -230,6 +342,18 @@ BUG_RUNNERS: list[tuple[str, Callable[[Any], bool]]] = [
     ("ise26.implementations.buggy.f06_bug01", _run_f06_bug01),
     ("ise26.implementations.buggy.f06_bug02", _run_f06_bug02),
     ("ise26.implementations.buggy.f06_bug03", _run_f06_bug03),
+    ("ise26.implementations.buggy.f07_bug01", _run_f07_bug01),
+    ("ise26.implementations.buggy.f07_bug02", _run_f07_bug02),
+    ("ise26.implementations.buggy.f07_bug03", _run_f07_bug03),
+    ("ise26.implementations.buggy.f08_bug01", _run_f08_bug01),
+    ("ise26.implementations.buggy.f08_bug02", _run_f08_bug02),
+    ("ise26.implementations.buggy.f08_bug03", _run_f08_bug03),
+    ("ise26.implementations.buggy.f09_bug01", _run_f09_bug01),
+    ("ise26.implementations.buggy.f09_bug02", _run_f09_bug02),
+    ("ise26.implementations.buggy.f09_bug03", _run_f09_bug03),
+    ("ise26.implementations.buggy.f10_bug01", _run_f10_bug01),
+    ("ise26.implementations.buggy.f10_bug02", _run_f10_bug02),
+    ("ise26.implementations.buggy.f10_bug03", _run_f10_bug03),
 ]
 
 

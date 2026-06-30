@@ -1,0 +1,38 @@
+"""Buggy variant for F09 that overwrites the original numeric column."""
+
+from __future__ import annotations
+
+import pandas as pd
+
+from ..correct import *  # noqa: F401,F403
+
+
+def cap_outliers_iqr(
+    df: pd.DataFrame,
+    value_col: str = "amount",
+    output_col: str = "amount_capped",
+) -> pd.DataFrame:
+    """Return a buggy capped column that mutates the original numeric field."""
+
+    # BUG: The capped values replace the original column instead of creating the requested output column.
+    result = df.copy(deep=True)
+    numeric_values = pd.to_numeric(result[value_col], errors="coerce")
+    valid_values = numeric_values.dropna()
+
+    if valid_values.empty:
+        result[value_col] = pd.Series([pd.NA] * len(result), index=result.index, dtype="Float64")
+        return result
+
+    q1 = float(valid_values.quantile(0.25))
+    q3 = float(valid_values.quantile(0.75))
+    iqr = q3 - q1
+    lower_bound = q1 - 1.5 * iqr
+    upper_bound = q3 + 1.5 * iqr
+    capped_values = [
+        pd.NA
+        if pd.isna(value)
+        else float(min(max(float(value), lower_bound), upper_bound))
+        for value in numeric_values
+    ]
+    result[value_col] = pd.Series(capped_values, index=result.index, dtype="Float64")
+    return result

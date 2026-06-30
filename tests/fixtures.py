@@ -12,7 +12,7 @@ def customer_names_dirty_df() -> pd.DataFrame:
     return pd.DataFrame(
         {
             "customer_name": [
-                "  José  da  Silva ",
+                "  Jos\u00e9  da  Silva ",
                 "  ANA  ",
                 "MARIA",
                 None,
@@ -215,3 +215,66 @@ def payment_reference_date() -> str:
     """Return the shared synthetic reference date used by payment tests."""
 
     return "2024-01-15"
+
+
+def order_items_json_df() -> pd.DataFrame:
+    """Return synthetic order items for JSON explosion scenarios."""
+
+    # The payloads cover multiple items, invalid JSON, empty lists, and null values.
+    return pd.DataFrame(
+        {
+            "order_id": [101, 102, 103, 104, 105, 106],
+            "items_json": [
+                '[{"sku": "SKU-1", "quantity": 2, "unit_price": 10.5}, {"sku": "SKU-2", "quantity": "3", "unit_price": "4.00"}]',
+                '[{"sku": "SKU-3", "quantity": 1, "unit_price": 7.25}]',
+                "invalid",
+                "[]",
+                None,
+                '[{"sku": "SKU-4", "quantity": "bad", "unit_price": 8}]',
+            ],
+        }
+    )
+
+
+def conversion_events_df() -> pd.DataFrame:
+    """Return synthetic conversion events for channel aggregation scenarios."""
+
+    # The data mixes valid counts, strings, zero visits, and missing values.
+    return pd.DataFrame(
+        {
+            "channel": ["search", "search", "social", "social", "email", "email"],
+            "visits": [100, "20", 0, "invalid", None, 50],
+            "conversions": [10, 5, 0, 2, 4, None],
+        }
+    )
+
+
+def outlier_amounts_df() -> pd.DataFrame:
+    """Return synthetic amounts for IQR-based outlier capping tests."""
+
+    # A single large value makes it easy to assert that capping occurred.
+    return pd.DataFrame(
+        {
+            "amount": [10, 11, 12, 13, 14, 15, 1000, None, "invalid"],
+        }
+    )
+
+
+def currency_values_df() -> pd.DataFrame:
+    """Return synthetic currency strings for normalization tests."""
+
+    # The values cover Brazilian and English separators, blanks, invalid text, and a negative value.
+    return pd.DataFrame(
+        {
+            "amount_raw": [
+                "R$ 1.234,56",
+                "1.234,56",
+                "1234.56",
+                "1,234.56",
+                "",
+                None,
+                "abc",
+                "R$ -10,00",
+            ],
+        }
+    )

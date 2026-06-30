@@ -11,11 +11,12 @@ Esta pasta reúne materiais preparados para o artigo acadêmico.
 
 ## Estrutura atual
 
-- `tables/`: tabelas já derivadas dos resultados oficiais;
-- `model_comparison/`: comparação entre Flash e Pro, quando ambos existirem;
+- `tables/`: tabelas derivadas dos resultados oficiais;
+- `model_comparison/`: comparação histórica entre Flash e Pro para a baseline de 6 funções;
+- `exp_10_functions/`: materiais da expansão nova de 10 funções;
 - `results_summary.md`: síntese interpretativa dos resultados oficiais.
 
-O comparador oficial do repositório é `scripts/compare_model_results.py`, e ele só deve gerar arquivos em `model_comparison/` quando os dois modelos tiverem resultados oficiais reais.
+O comparador oficial do repositório é `scripts/compare_model_results.py`, e ele só deve gerar arquivos em uma pasta comparativa quando os dois modelos tiverem resultados oficiais reais do mesmo `experiment_id`.
 
 ## Regra importante
 

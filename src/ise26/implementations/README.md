@@ -21,7 +21,7 @@ Representa uma versão intencionalmente errada, usada para verificar se os teste
 
 ## Papel de `correct.py`
 
-O arquivo `correct.py` contém as 6 funções corretas oficiais:
+O arquivo `correct.py` contém as 10 funções corretas oficiais:
 
 - `clean_customer_names`
 - `deduplicate_events`
@@ -34,7 +34,7 @@ Também contém funções auxiliares usadas internamente pelas implementações 
 
 ## Papel da pasta `buggy`
 
-A pasta `buggy/` contém 18 arquivos, com 3 bugs por função.
+A pasta `buggy/` contém 30 arquivos, com 3 bugs por função.
 
 Cada arquivo:
 

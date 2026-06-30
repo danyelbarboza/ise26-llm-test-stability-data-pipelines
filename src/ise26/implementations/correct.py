@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+import re
 import unicodedata
 from typing import Any
 
@@ -68,6 +70,127 @@ def _normalize_optional_string(value: Any) -> Any:
         return pd.NA
 
     return _remove_accents(compact_text)
+
+
+def _normalize_optional_text(value: Any) -> Any:
+    """Normalize a nullable text value without changing its letter case.
+
+    The helper is used for identifiers and codes that should keep their
+    original casing while still treating blank strings as missing values.
+
+    Args:
+        value: Original scalar value from a DataFrame column.
+
+    Returns:
+        A stripped text value or ``pd.NA`` when the value is missing.
+    """
+
+    if pd.isna(value):
+        return pd.NA
+
+    text = str(value).strip()
+    if text == "":
+        return pd.NA
+
+    return text
+
+
+def _coerce_numeric_or_zero(value: Any) -> float:
+    """Convert a scalar into a float and default invalid values to zero."""
+
+    numeric_value = pd.to_numeric(pd.Series([value]), errors="coerce").iloc[0]
+    if pd.isna(numeric_value):
+        return 0.0
+
+    return float(numeric_value)
+
+
+def _coerce_currency_text(value: Any) -> Any:
+    """Convert a text currency representation into a floating-point value.
+
+    The parser accepts both Brazilian and English numeric conventions and
+    returns ``pd.NA`` when the input cannot be interpreted as a monetary
+    amount.
+
+    Args:
+        value: Original scalar currency-like value.
+
+    Returns:
+        A float when parsing succeeds or ``pd.NA`` otherwise.
+    """
+
+    if pd.isna(value):
+        return pd.NA
+
+    text = str(value).strip()
+    if text == "":
+        return pd.NA
+
+    cleaned_text = re.sub(r"[^0-9,.\-]", "", text)
+    if cleaned_text in {"", "-", ".", ",", "-.", "-,"}:
+        return pd.NA
+
+    sign = ""
+    if cleaned_text.startswith("-"):
+        sign = "-"
+        cleaned_text = cleaned_text[1:]
+
+    last_comma = cleaned_text.rfind(",")
+    last_dot = cleaned_text.rfind(".")
+
+    if last_comma != -1 and last_dot != -1:
+        decimal_separator = "," if last_comma > last_dot else "."
+        thousand_separator = "." if decimal_separator == "," else ","
+        integer_part, decimal_part = cleaned_text.rsplit(decimal_separator, 1)
+        normalized_text = sign + integer_part.replace(thousand_separator, "") + "." + decimal_part
+    elif last_comma != -1:
+        normalized_text = sign + cleaned_text.replace(".", "").replace(",", ".")
+    else:
+        normalized_text = sign + cleaned_text.replace(",", "")
+
+    try:
+        return float(normalized_text)
+    except ValueError:
+        return pd.NA
+
+
+def _parse_order_items_payload(value: Any) -> list[dict[str, Any]]:
+    """Parse a JSON payload into a list of item dictionaries.
+
+    Invalid, empty, or non-list payloads are treated as missing items so the
+    calling transformation can skip them safely.
+
+    Args:
+        value: Raw JSON-like value stored in the source DataFrame.
+
+    Returns:
+        A list of dictionary items ready for row explosion.
+    """
+
+    if pd.isna(value):
+        return []
+
+    text = str(value).strip()
+    if text == "":
+        return []
+
+    try:
+        parsed_value = json.loads(text)
+    except (TypeError, ValueError, json.JSONDecodeError):
+        return []
+
+    if isinstance(parsed_value, dict):
+        parsed_value = [parsed_value]
+
+    if not isinstance(parsed_value, list):
+        return []
+
+    item_records: list[dict[str, Any]] = []
+    for item in parsed_value:
+        if isinstance(item, dict):
+            item_records.append(item)
+
+    return item_records
 
 
 def _normalize_status_text(value: Any) -> str:
@@ -512,4 +635,177 @@ def classify_payment_status(
     statuses.loc[pending_mask] = "pending"
 
     result[output_col] = statuses
+    return result
+
+
+def parse_order_items_json(
+    df: pd.DataFrame,
+    json_col: str = "items_json",
+    order_id_col: str = "order_id",
+) -> pd.DataFrame:
+    """Explode JSON-encoded order items into one row per item.
+
+    The function skips invalid, empty, or missing JSON payloads. Each valid item
+    keeps the originating order identifier, and quantity or unit price values
+    that cannot be parsed are converted to zero before computing ``item_total``.
+
+    Args:
+        df: Source DataFrame containing JSON-encoded item lists.
+        json_col: Column that stores the JSON payload.
+        order_id_col: Column that identifies the order.
+
+    Returns:
+        A new DataFrame with one row per item and the columns ``order_id``,
+        ``sku``, ``quantity``, ``unit_price``, and ``item_total``. When a
+        custom ``order_id_col`` is provided, that same name is preserved in the
+        output.
+    """
+
+    result = _clone_dataframe(df)
+    output_records: list[dict[str, Any]] = []
+
+    for source_order, (_, row) in enumerate(result.iterrows()):
+        item_payloads = _parse_order_items_payload(row[json_col])
+        for item_order, item_payload in enumerate(item_payloads):
+            quantity = _coerce_numeric_or_zero(item_payload.get("quantity"))
+            unit_price = _coerce_numeric_or_zero(item_payload.get("unit_price"))
+
+            output_records.append(
+                {
+                    order_id_col: row[order_id_col],
+                    "sku": _normalize_optional_text(item_payload.get("sku")),
+                    "quantity": quantity,
+                    "unit_price": unit_price,
+                    "item_total": quantity * unit_price,
+                    "_source_order": source_order,
+                    "_item_order": item_order,
+                }
+            )
+
+    output_columns = [order_id_col, "sku", "quantity", "unit_price", "item_total"]
+    if not output_records:
+        return pd.DataFrame(columns=output_columns)
+
+    exploded_items = pd.DataFrame.from_records(output_records)
+    exploded_items = exploded_items.sort_values(
+        by=["_source_order", "_item_order"],
+        kind="stable",
+    )
+
+    return exploded_items[output_columns].reset_index(drop=True)
+
+
+def calculate_conversion_rate(
+    df: pd.DataFrame,
+    group_col: str = "channel",
+    visits_col: str = "visits",
+    conversions_col: str = "conversions",
+) -> pd.DataFrame:
+    """Aggregate conversion metrics and compute the conversion rate.
+
+    Missing or invalid numeric values are treated as zero before aggregation.
+    Channels are sorted alphabetically in the returned DataFrame.
+
+    Args:
+        df: Source DataFrame with channel-level activity metrics.
+        group_col: Column that identifies the grouping dimension.
+        visits_col: Column containing visit counts.
+        conversions_col: Column containing conversion counts.
+
+    Returns:
+        A new DataFrame with ``channel``, ``visits``, ``conversions``, and
+        ``conversion_rate`` columns.
+    """
+
+    result = _clone_dataframe(df)
+    aggregated = pd.DataFrame(
+        {
+            group_col: result[group_col],
+            "_visits": pd.to_numeric(result[visits_col], errors="coerce").fillna(0),
+            "_conversions": pd.to_numeric(result[conversions_col], errors="coerce").fillna(0),
+        }
+    )
+
+    grouped = (
+        aggregated.groupby(group_col, as_index=False, dropna=False)[["_visits", "_conversions"]]
+        .sum()
+        .sort_values(group_col, kind="stable")
+        .reset_index(drop=True)
+    )
+
+    grouped["visits"] = grouped["_visits"].astype(float)
+    grouped["conversions"] = grouped["_conversions"].astype(float)
+    grouped["conversion_rate"] = grouped.apply(
+        lambda row: 0.0 if row["visits"] <= 0 else float(row["conversions"] / row["visits"]),
+        axis=1,
+    )
+
+    return grouped[[group_col, "visits", "conversions", "conversion_rate"]]
+
+
+def cap_outliers_iqr(
+    df: pd.DataFrame,
+    value_col: str = "amount",
+    output_col: str = "amount_capped",
+) -> pd.DataFrame:
+    """Cap numeric outliers using the IQR rule without mutating the input.
+
+    Missing or invalid values stay missing in the capped output column. The
+    original numeric column is preserved unchanged.
+
+    Args:
+        df: Source DataFrame with the numeric values to cap.
+        value_col: Column containing the original values.
+        output_col: Name of the capped output column.
+
+    Returns:
+        A new DataFrame with an additional capped numeric column.
+    """
+
+    result = _clone_dataframe(df)
+    numeric_values = pd.to_numeric(result[value_col], errors="coerce")
+    valid_values = numeric_values.dropna()
+
+    if valid_values.empty:
+        result[output_col] = pd.Series([pd.NA] * len(result), index=result.index, dtype="Float64")
+        return result
+
+    q1 = float(valid_values.quantile(0.25))
+    q3 = float(valid_values.quantile(0.75))
+    iqr = q3 - q1
+    lower_bound = q1 - 1.5 * iqr
+    upper_bound = q3 + 1.5 * iqr
+
+    capped_values = [
+        pd.NA
+        if pd.isna(value)
+        else float(min(max(float(value), lower_bound), upper_bound))
+        for value in numeric_values
+    ]
+    result[output_col] = pd.Series(capped_values, index=result.index, dtype="Float64")
+    return result
+
+
+def standardize_currency_values(
+    df: pd.DataFrame,
+    value_col: str = "amount_raw",
+    output_col: str = "amount",
+) -> pd.DataFrame:
+    """Normalize common textual currency formats into numeric values.
+
+    The parser accepts both Brazilian and English separators and leaves invalid
+    values as ``pd.NA``. The original raw column remains untouched.
+
+    Args:
+        df: Source DataFrame with text currency values.
+        value_col: Column containing the raw textual amounts.
+        output_col: Name of the standardized numeric output column.
+
+    Returns:
+        A new DataFrame with a nullable numeric currency column.
+    """
+
+    result = _clone_dataframe(df)
+    normalized_values = [_coerce_currency_text(value) for value in result[value_col]]
+    result[output_col] = pd.Series(normalized_values, index=result.index, dtype="Float64")
     return result

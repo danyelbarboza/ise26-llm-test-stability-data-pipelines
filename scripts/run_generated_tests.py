@@ -19,16 +19,20 @@ SRC_ROOT = PROJECT_ROOT / "src"
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
-from ise26.experiment_paths import resolve_generated_tests_root, resolve_results_root
+from ise26.experiment_paths import (
+    resolve_generated_tests_root,
+    resolve_results_root,
+    resolve_functions_metadata_path,
+    resolve_bugs_metadata_path,
+)
 
 
 CORRECT_MODULE_PATH = PROJECT_ROOT / "src" / "ise26" / "implementations" / "correct.py"
-FUNCTIONS_METADATA_PATH = PROJECT_ROOT / "src" / "ise26" / "metadata" / "functions.json"
-BUGS_METADATA_PATH = PROJECT_ROOT / "src" / "ise26" / "metadata" / "bugs.json"
 RUN_IDS = [f"run_{index:02d}" for index in range(1, 6)]
 DEFAULT_MODEL_NAME = "deepseek_v4_flash"
 GENERATED_TESTS_ROOT = resolve_generated_tests_root(DEFAULT_MODEL_NAME)
 RAW_RESULTS_PATH = resolve_results_root(DEFAULT_MODEL_NAME) / "raw" / "generated_tests_results.csv"
+ACTIVE_EXPERIMENT_ID: str | None = None
 
 
 def load_json_records(path: Path) -> list[dict[str, Any]]:
@@ -53,8 +57,8 @@ def build_target_matrix() -> list[dict[str, Any]]:
         and the corresponding target module information.
     """
 
-    functions_metadata = load_json_records(FUNCTIONS_METADATA_PATH)
-    bugs_metadata = load_json_records(BUGS_METADATA_PATH)
+    functions_metadata = load_json_records(resolve_functions_metadata_path(ACTIVE_EXPERIMENT_ID))
+    bugs_metadata = load_json_records(resolve_bugs_metadata_path(ACTIVE_EXPERIMENT_ID))
 
     bugs_by_function: dict[str, list[dict[str, Any]]] = {}
     for bug_record in bugs_metadata:
@@ -456,6 +460,10 @@ def parse_args(argv: list[str] | None = None) -> Any:
         help="Model key or model name used to resolve the generated-test and results folders.",
     )
     parser.add_argument(
+        "--experiment-id",
+        help="Optional experiment identifier used to separate generated-test and result trees.",
+    )
+    parser.add_argument(
         "--config",
         type=Path,
         help="Optional configuration file used to infer the model name.",
@@ -473,6 +481,23 @@ def resolve_model_name(args: Any) -> str:
     return str(args.model)
 
 
+def resolve_experiment_id(args: Any) -> str | None:
+    """Resolve the active experiment identifier from CLI or config settings."""
+
+    config_experiment_id = None
+    if args.config is not None:
+        with args.config.open("r", encoding="utf-8") as file_handle:
+            config = json.load(file_handle)
+        config_experiment_id = str(config.get("experiment_id", "")).strip() or None
+
+    cli_experiment_id = str(args.experiment_id).strip() if args.experiment_id else None
+
+    if cli_experiment_id and config_experiment_id and cli_experiment_id != config_experiment_id:
+        raise ValueError("The CLI experiment id does not match the configuration file.")
+
+    return cli_experiment_id or config_experiment_id
+
+
 def main(argv: list[str] | None = None) -> int:
     """Run the generated-test execution workflow and write the raw CSV file.
 
@@ -482,8 +507,12 @@ def main(argv: list[str] | None = None) -> int:
 
     args = parse_args(argv)
     model_name = resolve_model_name(args)
-    generated_tests_root = resolve_generated_tests_root(model_name)
-    results_root = resolve_results_root(model_name)
+    experiment_id = resolve_experiment_id(args)
+    global ACTIVE_EXPERIMENT_ID
+    ACTIVE_EXPERIMENT_ID = experiment_id
+
+    generated_tests_root = resolve_generated_tests_root(model_name, experiment_id=experiment_id)
+    results_root = resolve_results_root(model_name, experiment_id=experiment_id)
     raw_results_path = results_root / "raw" / "generated_tests_results.csv"
 
     rows = collect_execution_rows(generated_tests_root=generated_tests_root)

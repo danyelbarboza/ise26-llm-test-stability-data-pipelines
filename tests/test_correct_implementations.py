@@ -7,24 +7,32 @@ import pandas.testing as pdt
 import pytest
 
 from ise26.implementations.correct import (
+    calculate_conversion_rate,
     calculate_monthly_revenue,
     classify_payment_status,
+    cap_outliers_iqr,
     clean_customer_names,
     deduplicate_events,
     join_customers_orders,
+    parse_order_items_json,
+    standardize_currency_values,
     validate_schema,
 )
 from tests.fixtures import (
+    conversion_events_df,
     customer_names_dirty_df,
     customers_for_join_df,
     events_with_duplicates_df,
     expected_schema_definition,
     extra_column_schema_df,
+    currency_values_df,
     missing_column_schema_df,
     orders_for_join_df,
     orders_for_monthly_revenue_df,
+    order_items_json_df,
     payment_reference_date,
     payments_for_status_classification_df,
+    outlier_amounts_df,
     valid_schema_df,
     wrong_type_schema_df,
 )
@@ -242,6 +250,134 @@ def test_classify_payment_status_marks_invalid_paid_dates_and_invalid_reference_
         classify_payment_status(source, reference_date="invalid-reference-date")
 
 
+def test_parse_order_items_json_explodes_items_and_skips_invalid_payloads() -> None:
+    """Verify JSON explosion, invalid payload skipping, and item totals."""
+
+    source = order_items_json_df()
+
+    result = parse_order_items_json(source)
+
+    expected = pd.DataFrame(
+        {
+            "order_id": [101, 101, 102, 106],
+            "sku": ["SKU-1", "SKU-2", "SKU-3", "SKU-4"],
+            "quantity": [2.0, 3.0, 1.0, 0.0],
+            "unit_price": [10.5, 4.0, 7.25, 8.0],
+            "item_total": [21.0, 12.0, 7.25, 0.0],
+        }
+    )
+
+    pdt.assert_frame_equal(result.reset_index(drop=True), expected)
+
+
+def test_parse_order_items_json_supports_custom_order_identifier_column() -> None:
+    """Verify that the output keeps a custom order identifier column name."""
+
+    source = order_items_json_df().rename(columns={"order_id": "purchase_id"})
+
+    result = parse_order_items_json(source, order_id_col="purchase_id")
+
+    assert list(result.columns) == ["purchase_id", "sku", "quantity", "unit_price", "item_total"]
+    assert result["purchase_id"].tolist() == [101, 101, 102, 106]
+    assert result.shape[0] == 4
+
+
+def test_calculate_conversion_rate_aggregates_channels_and_handles_invalid_values() -> None:
+    """Verify grouping, numeric coercion, and zero-safe rate calculation."""
+
+    source = conversion_events_df()
+
+    result = calculate_conversion_rate(source)
+
+    expected = pd.DataFrame(
+        {
+            "channel": ["email", "search", "social"],
+            "visits": [50.0, 120.0, 0.0],
+            "conversions": [4.0, 15.0, 2.0],
+            "conversion_rate": [0.08, 0.125, 0.0],
+        }
+    )
+
+    pdt.assert_frame_equal(result.reset_index(drop=True), expected)
+
+
+def test_calculate_conversion_rate_returns_zero_for_zero_visit_groups() -> None:
+    """Verify the zero-visit boundary case."""
+
+    source = pd.DataFrame(
+        {
+            "channel": ["display", "display"],
+            "visits": [0, "invalid"],
+            "conversions": [5, 7],
+        }
+    )
+
+    result = calculate_conversion_rate(source)
+
+    assert result.loc[result["channel"] == "display", "conversion_rate"].iloc[0] == 0.0
+    assert result.loc[result["channel"] == "display", "visits"].iloc[0] == 0.0
+    assert result.loc[result["channel"] == "display", "conversions"].iloc[0] == 12.0
+
+
+def test_cap_outliers_iqr_caps_large_values_and_preserves_input() -> None:
+    """Verify IQR capping and original-column preservation."""
+
+    source = outlier_amounts_df()
+    original = source.copy(deep=True)
+
+    result = cap_outliers_iqr(source)
+
+    expected = source.copy(deep=True)
+    expected["amount_capped"] = pd.Series(
+        [10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 19.0, pd.NA, pd.NA],
+        dtype="Float64",
+    )
+
+    pdt.assert_frame_equal(result, expected)
+    pdt.assert_frame_equal(source, original)
+
+
+def test_cap_outliers_iqr_supports_custom_output_column_and_keeps_nulls_missing() -> None:
+    """Verify custom output names and missing-value preservation."""
+
+    source = outlier_amounts_df().iloc[[0, 7, 8]].reset_index(drop=True)
+
+    result = cap_outliers_iqr(source, output_col="amount_trimmed")
+
+    assert "amount_trimmed" in result.columns
+    assert pd.isna(result.loc[1, "amount_trimmed"])
+    assert pd.isna(result.loc[2, "amount_trimmed"])
+
+
+def test_standardize_currency_values_parses_common_formats_and_preserves_input() -> None:
+    """Verify currency normalization for Brazilian and English formats."""
+
+    source = currency_values_df()
+    original = source.copy(deep=True)
+
+    result = standardize_currency_values(source)
+
+    expected = source.copy(deep=True)
+    expected["amount"] = pd.Series(
+        [1234.56, 1234.56, 1234.56, 1234.56, pd.NA, pd.NA, pd.NA, -10.0],
+        dtype="Float64",
+    )
+
+    pdt.assert_frame_equal(result, expected)
+    pdt.assert_frame_equal(source, original)
+
+
+def test_standardize_currency_values_supports_custom_output_column() -> None:
+    """Verify custom output names and missing-value preservation."""
+
+    source = currency_values_df().iloc[[4, 5, 6]].reset_index(drop=True)
+
+    result = standardize_currency_values(source, output_col="amount_value")
+
+    assert list(result.columns) == ["amount_raw", "amount_value"]
+    assert result["amount_value"].isna().all()
+
+
 @pytest.mark.parametrize(
     "function_name",
     [
@@ -251,6 +387,10 @@ def test_classify_payment_status_marks_invalid_paid_dates_and_invalid_reference_
         "join_customers_orders",
         "validate_schema",
         "classify_payment_status",
+        "parse_order_items_json",
+        "calculate_conversion_rate",
+        "cap_outliers_iqr",
+        "standardize_currency_values",
     ],
 )
 def test_correct_functions_do_not_mutate_original_dataframes(function_name: str) -> None:
@@ -294,7 +434,35 @@ def test_correct_functions_do_not_mutate_original_dataframes(function_name: str)
         pdt.assert_frame_equal(source, original)
         return
 
-    source = payments_for_status_classification_df()
+    if function_name == "classify_payment_status":
+        source = payments_for_status_classification_df()
+        original = source.copy(deep=True)
+        classify_payment_status(source, reference_date=payment_reference_date())
+        pdt.assert_frame_equal(source, original)
+        return
+
+    if function_name == "parse_order_items_json":
+        source = order_items_json_df()
+        original = source.copy(deep=True)
+        parse_order_items_json(source)
+        pdt.assert_frame_equal(source, original)
+        return
+
+    if function_name == "calculate_conversion_rate":
+        source = conversion_events_df()
+        original = source.copy(deep=True)
+        calculate_conversion_rate(source)
+        pdt.assert_frame_equal(source, original)
+        return
+
+    if function_name == "cap_outliers_iqr":
+        source = outlier_amounts_df()
+        original = source.copy(deep=True)
+        cap_outliers_iqr(source)
+        pdt.assert_frame_equal(source, original)
+        return
+
+    source = currency_values_df()
     original = source.copy(deep=True)
-    classify_payment_status(source, reference_date=payment_reference_date())
+    standardize_currency_values(source)
     pdt.assert_frame_equal(source, original)

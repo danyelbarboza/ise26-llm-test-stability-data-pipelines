@@ -9,7 +9,6 @@ Requisitos obrigatórios:
 - Não altere, não reimplemente e não envolva a função original.
 - Não use API externa, arquivos externos, rede, banco de dados ou recursos fora do próprio teste.
 - Crie os `DataFrame`s sintéticos necessários dentro do próprio arquivo de teste.
-- Não importe `tests.fixtures` nem qualquer fixture interna do repositório.
 - Cubra casos comuns e casos de borda.
 - Quando fizer sentido, considere valores nulos, duplicatas, datas, schema e regras de negócio.
 - Verifique comportamento por meio de valores retornados e estruturas produzidas pela função.

@@ -15,7 +15,10 @@ SRC_ROOT = PROJECT_ROOT / "src"
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
-from ise26.experiment_paths import resolve_generated_tests_root
+from ise26.experiment_paths import (
+    resolve_generated_tests_root,
+    resolve_functions_metadata_path,
+)
 from ise26.implementations import correct
 from ise26.llm.code_extraction import extract_python_code
 from ise26.llm.deepseek_client import call_deepseek
@@ -31,7 +34,6 @@ from ise26.llm.reproducibility import (
 
 DEFAULT_CONFIG_PATH = PROJECT_ROOT / "experiments" / "config" / "deepseek_v4_flash.json"
 CORRECT_MODULE_PATH = PROJECT_ROOT / "src" / "ise26" / "implementations" / "correct.py"
-FUNCTIONS_METADATA_PATH = PROJECT_ROOT / "src" / "ise26" / "metadata" / "functions.json"
 PLACEHOLDER_MARKER = "GENERATED_TEST_PLACEHOLDER"
 RUN_IDS = [f"run_{index:02d}" for index in range(1, 6)]
 MANIFEST_FIELDNAMES = [
@@ -57,6 +59,7 @@ MANIFEST_FIELDNAMES = [
     "output_tokens",
     "total_tokens",
     "overwrite_used",
+    "experiment_id",
 ]
 
 
@@ -83,6 +86,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=DEFAULT_CONFIG_PATH,
         help="Path to the model configuration JSON file.",
     )
+    parser.add_argument(
+        "--experiment-id",
+        help="Optional experiment identifier used to separate generated-test trees.",
+    )
     mode_group = parser.add_mutually_exclusive_group()
     mode_group.add_argument(
         "--dry-run",
@@ -96,7 +103,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--function-id",
-        choices=[f"F0{index}" for index in range(1, 7)],
+        choices=[f"F0{index}" for index in range(1, 10)] + ["F10"],
         help="Restrict generation to a single function identifier.",
     )
     parser.add_argument(
@@ -113,21 +120,40 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
-def load_functions_metadata() -> list[dict[str, Any]]:
+def resolve_experiment_id(config: dict[str, Any], cli_experiment_id: str | None) -> str | None:
+    """Resolve the active experiment identifier from CLI and config values."""
+
+    config_experiment_id = str(config.get("experiment_id", "")).strip() or None
+    if cli_experiment_id and config_experiment_id and cli_experiment_id != config_experiment_id:
+        raise ValueError(
+            "The experiment id provided on the command line does not match the configuration file."
+        )
+
+    return cli_experiment_id or config_experiment_id
+
+
+def load_functions_metadata(experiment_id: str | None) -> list[dict[str, Any]]:
     """Load the function metadata used by the experiment."""
 
-    with FUNCTIONS_METADATA_PATH.open("r", encoding="utf-8") as file_handle:
+    metadata_path = resolve_functions_metadata_path(experiment_id)
+    with metadata_path.open("r", encoding="utf-8") as file_handle:
         return json.load(file_handle)
 
 
-def select_functions(function_id: str | None) -> list[dict[str, Any]]:
+def select_functions(
+    function_id: str | None,
+    functions_metadata: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
     """Select the function records to be processed by the current command."""
 
-    functions_metadata = load_functions_metadata()
     if function_id is None:
         return functions_metadata
 
-    return [record for record in functions_metadata if record["id"] == function_id]
+    selected_functions = [record for record in functions_metadata if record["id"] == function_id]
+    if not selected_functions:
+        raise ValueError(f"Unknown function identifier: {function_id}")
+
+    return selected_functions
 
 
 def select_run_ids(run_id: str | None) -> list[str]:
@@ -146,10 +172,11 @@ def build_generation_plan(
     function_id: str | None,
     run_id: str | None,
     generated_tests_root: Path,
+    functions_metadata: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
     """Build the list of generation attempts for the selected filters."""
 
-    selected_functions = select_functions(function_id)
+    selected_functions = select_functions(function_id, functions_metadata)
     selected_runs = select_run_ids(run_id)
     plan: list[dict[str, Any]] = []
 
@@ -259,6 +286,7 @@ def build_metadata_payload(
     function_record: dict[str, Any],
     run_id: str,
     config: dict[str, Any],
+    experiment_id: str | None,
     prompt_hash: str,
     function_code_hash: str,
     correct_module_hash: str,
@@ -279,6 +307,7 @@ def build_metadata_payload(
         "run_id": run_id,
         "provider": config["provider"],
         "model": config["model"],
+        "experiment_id": experiment_id or "",
         "temperature": config["temperature"],
         "top_p": config["top_p"],
         "max_tokens": config["max_tokens"],
@@ -342,7 +371,12 @@ def append_manifest_row(manifest_path: Path, row: dict[str, Any]) -> None:
         writer.writerow(row)
 
 
-def summarize_plan(plan: list[dict[str, Any]], config: dict[str, Any], execute: bool) -> None:
+def summarize_plan(
+    plan: list[dict[str, Any]],
+    config: dict[str, Any],
+    execute: bool,
+    experiment_id: str | None,
+) -> None:
     """Print a concise summary of the generation plan."""
 
     function_ids = sorted({item["function_record"]["id"] for item in plan})
@@ -352,6 +386,7 @@ def summarize_plan(plan: list[dict[str, Any]], config: dict[str, Any], execute: 
     print(f"Generation mode: {mode_label}")
     print(f"Provider: {config['provider']}")
     print(f"Model: {config['model']}")
+    print(f"Experiment id: {experiment_id or 'legacy'}")
     print(f"Temperature: {config['temperature']}")
     print(f"Top-p: {config['top_p']}")
     print(f"Max tokens: {config['max_tokens']}")
@@ -363,6 +398,7 @@ def summarize_plan(plan: list[dict[str, Any]], config: dict[str, Any], execute: 
 def execute_generation_attempt(
     plan_item: dict[str, Any],
     config: dict[str, Any],
+    experiment_id: str | None,
     command_executed: str,
     overwrite_used: bool,
 ) -> dict[str, Any]:
@@ -431,6 +467,7 @@ def execute_generation_attempt(
             function_record=function_record,
             run_id=run_id,
             config=config,
+            experiment_id=experiment_id,
             prompt_hash=prompt_hash,
             function_code_hash=function_code_hash,
             correct_module_hash=correct_module_hash,
@@ -455,6 +492,7 @@ def execute_generation_attempt(
             "run_id": run_id,
             "provider": config["provider"],
             "model": config["model"],
+            "experiment_id": experiment_id or "",
             "temperature": config["temperature"],
             "top_p": config["top_p"],
             "max_tokens": config["max_tokens"],
@@ -489,6 +527,7 @@ def execute_generation_attempt(
         function_record=function_record,
         run_id=run_id,
         config=config,
+        experiment_id=experiment_id,
         prompt_hash=prompt_hash,
         function_code_hash=function_code_hash,
         correct_module_hash=correct_module_hash,
@@ -512,6 +551,7 @@ def execute_generation_attempt(
         "run_id": run_id,
         "provider": config["provider"],
         "model": config["model"],
+        "experiment_id": experiment_id or "",
         "temperature": config["temperature"],
         "top_p": config["top_p"],
         "max_tokens": config["max_tokens"],
@@ -539,16 +579,18 @@ def main(argv: list[str] | None = None) -> int:
     load_environment_file()
     config_path = args.config
     config = load_json_configuration(config_path)
-    generated_tests_root = resolve_generated_tests_root(config["model"])
+    experiment_id = resolve_experiment_id(config, args.experiment_id)
+    generated_tests_root = resolve_generated_tests_root(config["model"], experiment_id=experiment_id)
     manifest_path = generated_tests_root / "manifest.csv"
-    plan = build_generation_plan(args.function_id, args.run_id, generated_tests_root)
+    functions_metadata = load_functions_metadata(experiment_id)
+    plan = build_generation_plan(args.function_id, args.run_id, generated_tests_root, functions_metadata)
     execute = bool(args.execute)
     dry_run = bool(args.dry_run or not execute)
     overwrite_used = bool(args.overwrite)
 
     if overwrite_used:
         print("Overwrite mode is enabled. Existing artifacts may be replaced for matching targets.")
-    summarize_plan(plan, config, execute=execute)
+    summarize_plan(plan, config, execute=execute, experiment_id=experiment_id)
 
     if dry_run and not execute:
         print("Dry-run mode active. No API calls were made and no files were changed.")
@@ -568,6 +610,7 @@ def main(argv: list[str] | None = None) -> int:
         manifest_row = execute_generation_attempt(
             plan_item,
             config,
+            experiment_id,
             command_executed,
             overwrite_used,
         )

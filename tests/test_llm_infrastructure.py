@@ -25,6 +25,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 GENERATE_SCRIPT_PATH = PROJECT_ROOT / "scripts" / "generate_llm_tests.py"
 RUNNER_SCRIPT_PATH = PROJECT_ROOT / "scripts" / "run_generated_tests.py"
 CONFIG_PATH = PROJECT_ROOT / "experiments" / "config" / "deepseek_v4_flash.json"
+EXPANDED_CONFIG_PATH = PROJECT_ROOT / "experiments" / "config" / "deepseek_v4_flash_10_functions.json"
 
 
 def load_module_from_path(module_name: str, path: Path):
@@ -116,6 +117,17 @@ def test_load_json_configuration_reads_deepseek_defaults() -> None:
     assert config["runs_per_function"] == 5
 
 
+def test_load_json_configuration_reads_expanded_experiment_defaults() -> None:
+    """Verify that the expanded 10-function configuration loads correctly."""
+
+    config = load_json_configuration(EXPANDED_CONFIG_PATH)
+
+    assert config["provider"] == "DeepSeek"
+    assert config["model"] == "deepseek-v4-flash"
+    assert config["function_count"] == 10
+    assert config["experiment_id"] == "exp_10_functions"
+
+
 def test_require_api_key_raises_clear_error_when_missing(monkeypatch) -> None:
     """Verify that missing API credentials produce a clear runtime error."""
 
@@ -139,6 +151,22 @@ def test_generate_llm_tests_dry_run_succeeds() -> None:
     assert completed.returncode == 0
     assert "Generation mode: DRY-RUN" in completed.stdout
     assert "No API calls were made" in completed.stdout
+
+
+def test_generate_llm_tests_dry_run_uses_expanded_experiment_paths() -> None:
+    """Verify that the expanded config switches the generation tree and plan size."""
+
+    completed = subprocess.run(
+        [sys.executable, str(GENERATE_SCRIPT_PATH), "--dry-run", "--config", str(EXPANDED_CONFIG_PATH)],
+        cwd=PROJECT_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert completed.returncode == 0
+    assert "Experiment id: exp_10_functions" in completed.stdout
+    assert "Total planned calls: 50" in completed.stdout
 
 
 def test_generate_llm_tests_rejects_dry_run_and_execute_together() -> None:

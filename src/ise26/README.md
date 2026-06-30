@@ -39,7 +39,7 @@ Expõe sempre os mesmos nomes públicos para os testes gerados, enquanto escolhe
 ## Relação entre `implementations`, `metadata`, `llm` e `targets.py`
 
 - `implementations/correct.py` contém a referência oficial de comportamento.
-- `implementations/buggy/` contém os 18 bugs intencionais.
+- `implementations/buggy/` contém os 30 bugs intencionais.
 - `metadata/functions.json` lista as funções oficiais e o comportamento esperado usado na montagem do prompt.
 - `metadata/bugs.json` lista os bugs oficiais.
 - `llm/` prepara chamadas independentes, rastreáveis e sem histórico.

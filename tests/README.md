@@ -20,8 +20,8 @@ São os testes produzidos pela DeepSeek como parte do experimento oficial e arma
 
 Eles servem para:
 
-- validar as 6 funções corretas;
-- verificar se os 18 bugs continuam diferentes da referência;
+- validar as 10 funções corretas;
+- verificar se os 30 bugs continuam diferentes da referência;
 - confirmar integridade estrutural do repositório;
 - validar `ise26.targets`;
 - validar a infraestrutura DeepSeek sem usar a API real.

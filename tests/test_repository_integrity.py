@@ -16,6 +16,10 @@ FUNCTION_MAP = {
     "F04": "join_customers_orders",
     "F05": "validate_schema",
     "F06": "classify_payment_status",
+    "F07": "parse_order_items_json",
+    "F08": "calculate_conversion_rate",
+    "F09": "cap_outliers_iqr",
+    "F10": "standardize_currency_values",
 }
 
 # The integrity checks inspect the file system directly because the experiment
@@ -24,7 +28,7 @@ BUGGY_ROOT = Path(__file__).resolve().parents[1] / "src" / "ise26" / "implementa
 
 
 def test_correct_module_contains_all_expected_public_functions() -> None:
-    """Verify that the correct implementation module exposes the six functions."""
+    """Verify that the correct implementation module exposes the ten functions."""
 
     for function_name in FUNCTION_MAP.values():
         assert hasattr(correct, function_name), f"Missing correct implementation: {function_name}"

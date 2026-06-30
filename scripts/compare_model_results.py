@@ -14,7 +14,7 @@ SRC_ROOT = PROJECT_ROOT / "src"
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
-from ise26.experiment_paths import resolve_results_root
+from ise26.experiment_paths import resolve_results_root, resolve_comparison_root
 
 
 DEFAULT_FLASH_MODEL = "deepseek_v4_flash"
@@ -44,6 +44,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--flash-model", default=DEFAULT_FLASH_MODEL)
     parser.add_argument("--pro-model", default=DEFAULT_PRO_MODEL)
     parser.add_argument(
+        "--experiment-id",
+        help="Optional experiment identifier used to isolate comparison assets.",
+    )
+    parser.add_argument(
         "--output-dir",
         type=Path,
         default=DEFAULT_OUTPUT_ROOT,
@@ -64,17 +68,23 @@ def load_csv_if_available(path: Path) -> pd.DataFrame | None:
     return frame
 
 
-def load_overall_summary(model_name: str) -> pd.DataFrame | None:
+def load_overall_summary(model_name: str, experiment_id: str | None = None) -> pd.DataFrame | None:
     """Load the overall summary for one model."""
 
-    path = resolve_results_root(model_name) / "summary" / "summary_overall.csv"
+    if experiment_id is None:
+        path = resolve_results_root(model_name) / "summary" / "summary_overall.csv"
+    else:
+        path = resolve_results_root(model_name, experiment_id) / "summary" / "summary_overall.csv"
     return load_csv_if_available(path)
 
 
-def load_function_summary(model_name: str) -> pd.DataFrame | None:
+def load_function_summary(model_name: str, experiment_id: str | None = None) -> pd.DataFrame | None:
     """Load the function summary for one model."""
 
-    path = resolve_results_root(model_name) / "summary" / "summary_by_function.csv"
+    if experiment_id is None:
+        path = resolve_results_root(model_name) / "summary" / "summary_by_function.csv"
+    else:
+        path = resolve_results_root(model_name, experiment_id) / "summary" / "summary_by_function.csv"
     return load_csv_if_available(path)
 
 
@@ -194,13 +204,14 @@ def compare_models(
     flash_model: str,
     pro_model: str,
     output_dir: Path,
+    experiment_id: str | None = None,
 ) -> int:
     """Compare both models when their official results are available."""
 
-    flash_overall = load_overall_summary(flash_model)
-    pro_overall = load_overall_summary(pro_model)
-    flash_functions = load_function_summary(flash_model)
-    pro_functions = load_function_summary(pro_model)
+    flash_overall = load_overall_summary(flash_model, experiment_id=experiment_id)
+    pro_overall = load_overall_summary(pro_model, experiment_id=experiment_id)
+    flash_functions = load_function_summary(flash_model, experiment_id=experiment_id)
+    pro_functions = load_function_summary(pro_model, experiment_id=experiment_id)
 
     if not has_real_results(flash_overall):
         print(f"Comparison unavailable: no official results found for {flash_model}.")
@@ -217,12 +228,16 @@ def compare_models(
     overall_comparison = build_overall_comparison(flash_overall, pro_overall)
     function_comparison = build_function_comparison(flash_functions, pro_functions)
 
-    output_dir.mkdir(parents=True, exist_ok=True)
-    overall_csv = output_dir / "model_overall_comparison.csv"
-    overall_md = output_dir / "model_overall_comparison.md"
-    function_csv = output_dir / "model_by_function_comparison.csv"
-    function_md = output_dir / "model_by_function_comparison.md"
-    summary_md = output_dir / "model_comparison_summary.md"
+    resolved_output_dir = output_dir
+    if experiment_id:
+        resolved_output_dir = resolve_comparison_root(experiment_id)
+
+    resolved_output_dir.mkdir(parents=True, exist_ok=True)
+    overall_csv = resolved_output_dir / "model_overall_comparison.csv"
+    overall_md = resolved_output_dir / "model_overall_comparison.md"
+    function_csv = resolved_output_dir / "model_by_function_comparison.csv"
+    function_md = resolved_output_dir / "model_by_function_comparison.md"
+    summary_md = resolved_output_dir / "model_comparison_summary.md"
 
     overall_comparison.to_csv(overall_csv, index=False)
     function_comparison.to_csv(function_csv, index=False)
@@ -243,7 +258,7 @@ def main(argv: list[str] | None = None) -> int:
     """Command-line entry point for the comparison workflow."""
 
     args = parse_args(argv)
-    return compare_models(args.flash_model, args.pro_model, args.output_dir)
+    return compare_models(args.flash_model, args.pro_model, args.output_dir, experiment_id=args.experiment_id)
 
 
 if __name__ == "__main__":

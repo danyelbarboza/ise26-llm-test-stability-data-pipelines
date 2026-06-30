@@ -1,23 +1,29 @@
 # Pasta `results`
 
-Esta pasta guarda os resultados oficiais do experimento, organizados por modelo.
+Esta pasta guarda os resultados oficiais e os resultados preparados para os experimentos do repositório.
 
-## Estrutura
+## Estrutura principal
 
 ```text
 results/
   by_model/
     deepseek_v4_flash/
-      raw/
-      summary/
-      reports/
     deepseek_v4_pro/
-      raw/
-      summary/
-      reports/
+  by_experiment/
+    exp_10_functions/
+      by_model/
+        deepseek_v4_flash/
+        deepseek_v4_pro/
 ```
 
-## O que cada subpasta guarda
+## Como interpretar a estrutura
+
+- `results/by_model/` mantém a baseline histórica de 6 funções;
+- `results/by_experiment/exp_10_functions/` isola a expansão nova de 10 funções, com 50 suítes planejadas por modelo e 200 execuções-alvo por modelo;
+- Flash e Pro nunca devem compartilhar o mesmo CSV bruto;
+- resultados de experimentos diferentes nunca devem ser misturados.
+
+## O que cada pasta guarda
 
 - `raw/`: CSV detalhado com cada execução-alvo;
 - `summary/`: CSVs agregados por função, por run e no geral;
@@ -25,14 +31,17 @@ results/
 
 ## Estado atual
 
-- a execução oficial do Flash já existe e fica em `results/by_model/deepseek_v4_flash/`;
-- o Pro já tem execução oficial e fica em `results/by_model/deepseek_v4_pro/`;
-- não misture CSVs de modelos diferentes no mesmo arquivo.
+- a execução oficial histórica de Flash existe em `results/by_model/deepseek_v4_flash/`;
+- a execução oficial histórica de Pro existe em `results/by_model/deepseek_v4_pro/`;
+- a expansão `exp_10_functions` tem estrutura separada em `results/by_experiment/exp_10_functions/`;
+- a expansão nova usa 50 suítes por modelo e 200 execuções-alvo por modelo;
+- os arquivos preparados para a expansão nova não devem ser confundidos com resultados oficiais finais até a geração real ser concluída.
 
-## Resultados oficiais e comparação
+## Métricas
 
-Os resultados comparativos entre Flash e Pro ficam em `paper_assets/model_comparison/` e só são válidos quando os dois modelos têm resumos oficiais reais.
-O script `scripts/compare_model_results.py` gera os arquivos comparativos a partir desses resumos oficiais.
+- `reliable_defect_detection_rate` é a métrica principal;
+- `defect_detection_rate_raw` é auxiliar;
+- `false_positive_rate` e `contaminated_bug_failure_rate` ajudam na leitura metodológica.
 
 ## Atenção
 

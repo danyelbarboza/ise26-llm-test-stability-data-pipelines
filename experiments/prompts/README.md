@@ -1,18 +1,18 @@
-# README da pasta `prompts`
-
-## O que esta pasta contém
+# Pasta `experiments/prompts`
 
 Esta pasta guarda os prompts usados para a geração de testes com LLM.
 
 ## O que é o prompt padrão
 
-O prompt padrão é o texto-base usado para pedir ao modelo `deepseek-v4-flash` que produza uma suíte de testes em `pytest`.
+O prompt padrão é o texto-base usado para pedir ao modelo que produza uma suíte de testes em `pytest`.
 
 Esse prompt deve instruir a LLM a:
 
 - importar somente de `ise26.targets`;
 - criar os próprios `DataFrame`s sintéticos dentro de `test_generated.py`;
-- não depender de `tests/fixtures.py`, que é exclusivo dos testes internos.
+- não depender de `tests/fixtures.py`, que é exclusivo dos testes internos;
+- não alterar a função original;
+- cobrir casos comuns e de borda.
 
 ## Por que o mesmo prompt deve ser usado
 

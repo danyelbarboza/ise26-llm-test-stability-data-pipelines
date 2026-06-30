@@ -2,92 +2,126 @@
 
 ## Objetivo
 
-Avaliarmos a estabilidade de testes automatizados gerados por LLM para funções de transformação de dados em Python.
+Avaliar a estabilidade de testes automatizados gerados por LLM para funções de transformação de dados em Python.
 
 ## Escopo
 
-- 6 funções corretas oficiais;
-- 18 versões defeituosas intencionais;
+Este repositório mantém duas trilhas experimentais:
+
+- **`exp_6_functions`**: baseline histórica com 6 funções, já executada oficialmente para Flash e Pro;
+- **`exp_10_functions`**: expansão nova com 10 funções, preparada para uma nova rodada oficial.
+
+Para a expansão nova:
+
+- 10 funções corretas;
+- 30 versões defeituosas intencionais;
 - 5 execuções por função;
-- 30 suítes planejadas por modelo;
-- execução da suíte contra a implementação correta e contra BUG01, BUG02 e BUG03.
+- 50 suítes planejadas por modelo;
+- 200 execuções-alvo por modelo quando a geração oficial for concluída.
 
 ## Modelos oficiais
 
-- DeepSeek V4-Flash: execução oficial concluída e preservada;
-- DeepSeek V4-Pro: estrutura preparada, sem execução oficial ainda.
+- DeepSeek V4-Flash;
+- DeepSeek V4-Pro.
 
-## Comparação entre modelos
-
-A comparação entre Flash e Pro só é válida quando ambos tiverem execução oficial completa, usando exatamente o mesmo protocolo, os mesmos prompts e os mesmos parâmetros, mudando apenas o nome do modelo e a pasta de saída.
+Cada modelo deve ter sua própria árvore de artefatos. Nunca misture Flash e Pro no mesmo diretório, CSV ou comparação.
 
 ## Configuração oficial
 
 - Provedor: DeepSeek;
 - Base URL: `https://api.deepseek.com`;
-- Modelo Flash: `deepseek-v4-flash`;
-- Modelo Pro: `deepseek-v4-pro`;
+- Modelo Flash da expansão: `deepseek-v4-flash`;
+- Modelo Pro da expansão: `deepseek-v4-pro`;
 - Temperatura: `0.7`;
 - Top-p: `1.0`;
 - Max tokens: `4096`;
 - Histórico entre chamadas: desativado;
-- Estado padrão do script de geração: `dry-run`.
+- Estado padrão do gerador: `dry-run`.
 
-## Prompt padrão
+## Prompts oficiais
 
-O prompt oficial pede:
+O prompt padrão deve:
 
-- saída somente em código Python;
-- uso de Pytest;
-- importação exclusiva de `ise26.targets`;
-- criação de dados sintéticos dentro do próprio `test_generated.py`;
-- cobertura de casos comuns e de borda;
-- respeito às regras de nulos, datas, schema e negócio quando aplicável.
+- pedir saída somente em código Python;
+- pedir testes em `pytest`;
+- importar a função alvo somente de `ise26.targets`;
+- pedir que cada teste crie seus próprios dados sintéticos;
+- cobrir casos comuns e casos de borda;
+- considerar nulos, datas, schema, duplicatas e regras de negócio quando aplicável;
+- não mencionar nem incentivar `tests/fixtures.py`.
+
+Se o prompt mudar, a alteração precisa ser registrada no protocolo e na documentação.
 
 ## Regra sobre edição dos testes
 
-- os testes gerados por LLM não devem ser editados manualmente;
-- se houver correção metodológica futura, ela deve ser registrada no protocolo e versionada separadamente;
-- fixtures do repositório são exclusivas dos testes internos.
+- testes gerados por LLM não devem ser editados manualmente;
+- correções técnicas só podem acontecer se forem registradas como parte do protocolo;
+- `tests/fixtures.py` é exclusivo dos testes internos;
+- testes gerados devem criar seus próprios dados dentro do próprio `test_generated.py`.
 
 ## Estrutura de salvamento
 
-Cada modelo recebe sua própria árvore de artefatos:
+### Baseline histórica de 6 funções
 
 - `experiments/generated_tests/deepseek_v4_flash/`
 - `experiments/generated_tests/deepseek_v4_pro/`
-
-Os resultados também são separados por modelo:
-
 - `results/by_model/deepseek_v4_flash/`
 - `results/by_model/deepseek_v4_pro/`
+- `paper_assets/model_comparison/`
+
+### Expansão de 10 funções
+
+- `experiments/generated_tests/exp_10_functions/deepseek_v4_flash/`
+- `experiments/generated_tests/exp_10_functions/deepseek_v4_pro/`
+- `results/by_experiment/exp_10_functions/by_model/deepseek_v4_flash/`
+- `results/by_experiment/exp_10_functions/by_model/deepseek_v4_pro/`
+- `paper_assets/exp_10_functions/model_comparison/`
+
+Cada execução deve salvar:
+
+- `prompt.txt`
+- `system_prompt.txt`
+- `raw_response.txt`
+- `test_generated.py`
+- `metadata.json`
+- `request.json`
+- `status.json`
+- `manifest.csv`
 
 ## Critérios de validade
 
-Uma execução é considerada válida quando:
+### Execução válida
 
-- a suíte existe;
-- o arquivo tem sintaxe válida;
+Uma suíte é considerada válida quando:
+
+- existe `test_generated.py`;
+- o arquivo tem sintaxe Python válida;
 - a resposta bruta foi salva;
 - o código extraído foi salvo;
-- os metadados e status foram registrados.
+- os metadados foram registrados;
+- o status foi registrado.
 
-Uma execução é considerada inválida quando:
+### Execução inválida
 
-- a chamada à API falha;
+Uma suíte é inválida quando:
+
+- a chamada à API falha (`api_error`);
 - o arquivo final tem sintaxe inválida;
-- o teste não define suíte executável.
+- o arquivo não define uma suíte executável;
+- o teste depende de um recurso externo proibido pelo protocolo.
 
-Um placeholder não é resultado experimental real e não deve ser tratado como tal nos resumos.
+### Placeholder
+
+Placeholder não é resultado experimental real. Ele serve apenas para preparar a estrutura antes da geração oficial.
 
 ## Métricas registradas
 
 - executabilidade;
-- passagem na correta;
-- falha bruta contra bug;
-- `reliable_defect_detection_rate`;
-- `false_positive_rate`;
-- `contaminated_bug_failure_rate`;
+- passagem na implementação correta;
+- falha bruta contra bug (`bug_failure_rate`);
+- detecção confiável (`reliable_defect_detection_rate`);
+- falso positivo (`false_positive_rate`);
+- falha contaminada (`contaminated_bug_failure_rate`);
 - número de linhas do teste gerado;
 - número aproximado de funções de teste;
 - número aproximado de asserts;
@@ -96,16 +130,22 @@ Um placeholder não é resultado experimental real e não deve ser tratado como 
 
 ## Interpretação metodológica
 
-- falhar contra bug não basta para contar detecção de defeito;
+- falhar contra o bug não basta para contar detecção de defeito;
 - a mesma suíte precisa passar na correta para a detecção ser confiável;
 - falha na correta deve ser tratada como falso positivo;
 - falha contra bug com falha na correta é resultado contaminado;
 - `reliable_defect_detection_rate` é a métrica principal;
 - `defect_detection_rate_raw` é auxiliar e não deve ser usada sozinha.
 
+## Comparação entre modelos
+
+A comparação entre Flash e Pro só é válida quando ambos tiverem resultados oficiais reais do mesmo `experiment_id`.
+
+Não compare Flash e Pro usando placeholders, nem compare resultados de `exp_6_functions` com `exp_10_functions`.
+
 ## Limitações
 
-- os dados gerados pela LLM podem variar entre execuções;
+- os testes gerados por LLM podem variar entre execuções;
 - testes com sintaxe inválida não entram como execução real;
-- placeholders são úteis para preparação da estrutura, mas não contam como resultado oficial;
-- comparação entre Flash e Pro só deve ocorrer quando ambos tiverem execução oficial completa.
+- placeholders ajudam a preparar a estrutura, mas não contam como resultado oficial;
+- a expansão de 10 funções deve ser analisada separadamente da baseline histórica de 6 funções.

@@ -45,7 +45,7 @@ def test_generate_script_uses_flash_directory(monkeypatch) -> None:
     generate_module = load_module_from_path("ise26_generate_flash_isolation", GENERATE_SCRIPT_PATH)
     captured: dict[str, Path] = {}
 
-    def fake_build_generation_plan(function_id, run_id, generated_tests_root):
+    def fake_build_generation_plan(function_id, run_id, generated_tests_root, functions_metadata=None):
         captured["generated_tests_root"] = generated_tests_root
         return []
 
@@ -62,7 +62,7 @@ def test_generate_script_uses_pro_directory(monkeypatch) -> None:
     generate_module = load_module_from_path("ise26_generate_pro_isolation", GENERATE_SCRIPT_PATH)
     captured: dict[str, Path] = {}
 
-    def fake_build_generation_plan(function_id, run_id, generated_tests_root):
+    def fake_build_generation_plan(function_id, run_id, generated_tests_root, functions_metadata=None):
         captured["generated_tests_root"] = generated_tests_root
         return []
 
@@ -71,6 +71,40 @@ def test_generate_script_uses_pro_directory(monkeypatch) -> None:
 
     assert result == 0
     assert captured["generated_tests_root"] == PROJECT_ROOT / "experiments" / "generated_tests" / "deepseek_v4_pro"
+
+
+def test_generate_script_uses_expanded_flash_directory(monkeypatch) -> None:
+    """Verify that the expanded Flash config resolves to the experiment-specific tree."""
+
+    generate_module = load_module_from_path("ise26_generate_flash_expanded_isolation", GENERATE_SCRIPT_PATH)
+    captured: dict[str, Path] = {}
+
+    def fake_build_generation_plan(function_id, run_id, generated_tests_root, functions_metadata=None):
+        captured["generated_tests_root"] = generated_tests_root
+        return []
+
+    monkeypatch.setattr(generate_module, "build_generation_plan", fake_build_generation_plan)
+    result = generate_module.main(["--dry-run", "--config", str(PROJECT_ROOT / "experiments" / "config" / "deepseek_v4_flash_10_functions.json")])
+
+    assert result == 0
+    assert captured["generated_tests_root"] == PROJECT_ROOT / "experiments" / "generated_tests" / "exp_10_functions" / "deepseek_v4_flash"
+
+
+def test_generate_script_uses_expanded_pro_directory(monkeypatch) -> None:
+    """Verify that the expanded Pro config resolves to the experiment-specific tree."""
+
+    generate_module = load_module_from_path("ise26_generate_pro_expanded_isolation", GENERATE_SCRIPT_PATH)
+    captured: dict[str, Path] = {}
+
+    def fake_build_generation_plan(function_id, run_id, generated_tests_root, functions_metadata=None):
+        captured["generated_tests_root"] = generated_tests_root
+        return []
+
+    monkeypatch.setattr(generate_module, "build_generation_plan", fake_build_generation_plan)
+    result = generate_module.main(["--dry-run", "--config", str(PROJECT_ROOT / "experiments" / "config" / "deepseek_v4_pro_10_functions.json")])
+
+    assert result == 0
+    assert captured["generated_tests_root"] == PROJECT_ROOT / "experiments" / "generated_tests" / "exp_10_functions" / "deepseek_v4_pro"
 
 
 def test_runner_uses_flash_directory(monkeypatch) -> None:
@@ -127,6 +161,67 @@ def test_runner_uses_pro_directory(monkeypatch) -> None:
     assert captured["generated_tests_root"] == PROJECT_ROOT / "experiments" / "generated_tests" / "deepseek_v4_pro"
     assert captured["raw_results_path"] == PROJECT_ROOT / "results" / "by_model" / "deepseek_v4_pro" / "raw" / "generated_tests_results.csv"
     assert captured["summary_path"] == captured["raw_results_path"]
+
+
+def test_runner_uses_expanded_flash_directory(monkeypatch) -> None:
+    """Verify that the expanded Flash runner reads and writes only experiment paths."""
+
+    runner_module = load_module_from_path("ise26_runner_flash_expanded_isolation", RUNNER_SCRIPT_PATH)
+    captured: dict[str, Path] = {}
+
+    def fake_collect_execution_rows(generated_tests_root=None):
+        captured["generated_tests_root"] = generated_tests_root
+        return []
+
+    def fake_write_results_csv(rows, raw_results_path=None):
+        captured["raw_results_path"] = raw_results_path
+
+    def fake_print_execution_summary(rows, raw_results_path=None):
+        captured["summary_path"] = raw_results_path
+
+    monkeypatch.setattr(runner_module, "collect_execution_rows", fake_collect_execution_rows)
+    monkeypatch.setattr(runner_module, "write_results_csv", fake_write_results_csv)
+    monkeypatch.setattr(runner_module, "print_execution_summary", fake_print_execution_summary)
+
+    result = runner_module.main(["--model", "deepseek_v4_flash", "--experiment-id", "exp_10_functions"])
+
+    assert result == 0
+    assert captured["generated_tests_root"] == PROJECT_ROOT / "experiments" / "generated_tests" / "exp_10_functions" / "deepseek_v4_flash"
+    assert captured["raw_results_path"] == PROJECT_ROOT / "results" / "by_experiment" / "exp_10_functions" / "by_model" / "deepseek_v4_flash" / "raw" / "generated_tests_results.csv"
+    assert captured["summary_path"] == captured["raw_results_path"]
+
+
+def test_summary_uses_expanded_pro_directory(monkeypatch) -> None:
+    """Verify that the expanded Pro summaries are written only inside the experiment tree."""
+
+    summary_module = load_module_from_path("ise26_summary_pro_expanded_isolation", SUMMARY_SCRIPT_PATH)
+    captured: dict[str, Path] = {}
+
+    def fake_load_raw_results(raw_results_path=None):
+        captured["raw_results_path"] = raw_results_path
+        return pd.DataFrame()
+
+    def fake_write_summary_outputs(function_summary, run_summary, overall_summary, *, summary_by_function_path=None, summary_by_run_path=None, summary_overall_path=None):
+        captured["summary_by_function_path"] = summary_by_function_path
+        captured["summary_by_run_path"] = summary_by_run_path
+        captured["summary_overall_path"] = summary_overall_path
+
+    def fake_print_summary_locations(*, summary_by_function_path=None, summary_by_run_path=None, summary_overall_path=None):
+        captured["printed_summary_by_function_path"] = summary_by_function_path
+        captured["printed_summary_by_run_path"] = summary_by_run_path
+        captured["printed_summary_overall_path"] = summary_overall_path
+
+    monkeypatch.setattr(summary_module, "load_raw_results", fake_load_raw_results)
+    monkeypatch.setattr(summary_module, "write_summary_outputs", fake_write_summary_outputs)
+    monkeypatch.setattr(summary_module, "print_summary_locations", fake_print_summary_locations)
+
+    result = summary_module.main(["--model", "deepseek_v4_pro", "--experiment-id", "exp_10_functions"])
+
+    assert result == 0
+    assert captured["raw_results_path"] == PROJECT_ROOT / "results" / "by_experiment" / "exp_10_functions" / "by_model" / "deepseek_v4_pro" / "raw" / "generated_tests_results.csv"
+    assert captured["summary_by_function_path"] == PROJECT_ROOT / "results" / "by_experiment" / "exp_10_functions" / "by_model" / "deepseek_v4_pro" / "summary" / "summary_by_function.csv"
+    assert captured["summary_by_run_path"] == PROJECT_ROOT / "results" / "by_experiment" / "exp_10_functions" / "by_model" / "deepseek_v4_pro" / "summary" / "summary_by_run.csv"
+    assert captured["summary_overall_path"] == PROJECT_ROOT / "results" / "by_experiment" / "exp_10_functions" / "by_model" / "deepseek_v4_pro" / "summary" / "summary_overall.csv"
 
 
 def test_summary_uses_flash_directory(monkeypatch) -> None:

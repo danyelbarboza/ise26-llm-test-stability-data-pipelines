@@ -545,6 +545,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Model key or model name used to resolve the raw-results and summary folders.",
     )
     parser.add_argument(
+        "--experiment-id",
+        help="Optional experiment identifier used to separate result folders.",
+    )
+    parser.add_argument(
         "--config",
         type=Path,
         help="Optional configuration file used to infer the model name.",
@@ -562,6 +566,23 @@ def resolve_model_name(args: argparse.Namespace) -> str:
     return str(args.model)
 
 
+def resolve_experiment_id(args: argparse.Namespace) -> str | None:
+    """Resolve the active experiment identifier from CLI or config settings."""
+
+    config_experiment_id = None
+    if args.config is not None:
+        with args.config.open("r", encoding="utf-8") as file_handle:
+            config = json.load(file_handle)
+        config_experiment_id = str(config.get("experiment_id", "")).strip() or None
+
+    cli_experiment_id = str(args.experiment_id).strip() if args.experiment_id else None
+
+    if cli_experiment_id and config_experiment_id and cli_experiment_id != config_experiment_id:
+        raise ValueError("The CLI experiment id does not match the configuration file.")
+
+    return cli_experiment_id or config_experiment_id
+
+
 def main(argv: list[str] | None = None) -> int:
     """Load raw results, compute summaries, and persist the CSV reports.
 
@@ -571,7 +592,8 @@ def main(argv: list[str] | None = None) -> int:
 
     args = parse_args(argv)
     model_name = resolve_model_name(args)
-    results_root = resolve_results_root(model_name)
+    experiment_id = resolve_experiment_id(args)
+    results_root = resolve_results_root(model_name, experiment_id=experiment_id)
     raw_results_path = results_root / "raw" / "generated_tests_results.csv"
     summary_by_function_path = results_root / "summary" / "summary_by_function.csv"
     summary_by_run_path = results_root / "summary" / "summary_by_run.csv"

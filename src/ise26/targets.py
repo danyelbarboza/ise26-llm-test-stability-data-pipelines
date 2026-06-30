@@ -21,6 +21,10 @@ TARGET_FUNCTION_NAMES = [
     "join_customers_orders",
     "validate_schema",
     "classify_payment_status",
+    "parse_order_items_json",
+    "calculate_conversion_rate",
+    "cap_outliers_iqr",
+    "standardize_currency_values",
 ]
 
 
@@ -94,6 +98,10 @@ calculate_monthly_revenue = _BOUND_FUNCTIONS["calculate_monthly_revenue"]
 join_customers_orders = _BOUND_FUNCTIONS["join_customers_orders"]
 validate_schema = _BOUND_FUNCTIONS["validate_schema"]
 classify_payment_status = _BOUND_FUNCTIONS["classify_payment_status"]
+parse_order_items_json = _BOUND_FUNCTIONS["parse_order_items_json"]
+calculate_conversion_rate = _BOUND_FUNCTIONS["calculate_conversion_rate"]
+cap_outliers_iqr = _BOUND_FUNCTIONS["cap_outliers_iqr"]
+standardize_currency_values = _BOUND_FUNCTIONS["standardize_currency_values"]
 
 __all__ = [
     "DEFAULT_TARGET_MODULE",
@@ -107,4 +115,8 @@ __all__ = [
     "join_customers_orders",
     "validate_schema",
     "classify_payment_status",
+    "parse_order_items_json",
+    "calculate_conversion_rate",
+    "cap_outliers_iqr",
+    "standardize_currency_values",
 ]

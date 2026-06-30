@@ -1,6 +1,6 @@
 # Pasta `results/summary`
 
-Esta pasta raiz é mantida apenas para compatibilidade e documentação. Os resumos oficiais agora ficam em `results/by_model/<modelo>/summary/`.
+Esta pasta raiz existe por compatibilidade e documentação. Os resumos oficiais agora ficam nas pastas específicas de modelo e de experimento.
 
 ## Arquivos esperados
 
@@ -8,11 +8,20 @@ Esta pasta raiz é mantida apenas para compatibilidade e documentação. Os resu
 - `summary_by_run.csv`
 - `summary_overall.csv`
 
+## Onde ficam os arquivos oficiais
+
+- baseline histórica de 6 funções:
+  - `results/by_model/deepseek_v4_flash/summary/`
+  - `results/by_model/deepseek_v4_pro/summary/`
+- expansão de 10 funções:
+  - `results/by_experiment/exp_10_functions/by_model/deepseek_v4_flash/summary/`
+  - `results/by_experiment/exp_10_functions/by_model/deepseek_v4_pro/summary/`
+
 ## O que os resumos mostram
 
 - `summary_by_function.csv`: visão consolidada por função;
 - `summary_by_run.csv`: visão consolidada por função e execução;
-- `summary_overall.csv`: visão geral do modelo.
+- `summary_overall.csv`: visão geral do modelo e do experimento.
 
 ## Métricas principais
 

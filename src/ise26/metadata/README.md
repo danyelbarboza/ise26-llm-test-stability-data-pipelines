@@ -9,6 +9,8 @@ Os dois arquivos principais são:
 - `functions.json`
 - `bugs.json`
 
+Na configuração atual do repositório, os arquivos da raiz cobrem 10 funções corretas e 30 bugs intencionais. As cópias em `exp_6_functions/` e `exp_10_functions/` preservam o recorte de cada experimento.
+
 ## Papel de `functions.json`
 
 Esse arquivo descreve as funções corretas oficiais do estudo.
