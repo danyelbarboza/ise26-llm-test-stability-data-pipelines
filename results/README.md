@@ -19,7 +19,7 @@ results/
 ## Como interpretar a estrutura
 
 - `results/by_model/` mantém a baseline histórica de 6 funções;
-- `results/by_experiment/exp_10_functions/` isola a expansão nova de 10 funções, com 50 suítes planejadas por modelo e 200 execuções-alvo por modelo;
+- `results/by_experiment/exp_10_functions/` isola a expansão oficial de 10 funções, com 50 suítes planejadas por modelo e 200 execuções-alvo por modelo;
 - Flash e Pro nunca devem compartilhar o mesmo CSV bruto;
 - resultados de experimentos diferentes nunca devem ser misturados.
 
@@ -34,8 +34,9 @@ results/
 - a execução oficial histórica de Flash existe em `results/by_model/deepseek_v4_flash/`;
 - a execução oficial histórica de Pro existe em `results/by_model/deepseek_v4_pro/`;
 - a expansão `exp_10_functions` tem estrutura separada em `results/by_experiment/exp_10_functions/`;
+- a expansão `exp_10_functions` já possui resultados oficiais para Flash e Pro;
 - a expansão nova usa 50 suítes por modelo e 200 execuções-alvo por modelo;
-- os arquivos preparados para a expansão nova não devem ser confundidos com resultados oficiais finais até a geração real ser concluída.
+- os arquivos da expansão oficial não devem ser confundidos com placeholders ou resultados de preparação anterior.
 
 ## Métricas
 

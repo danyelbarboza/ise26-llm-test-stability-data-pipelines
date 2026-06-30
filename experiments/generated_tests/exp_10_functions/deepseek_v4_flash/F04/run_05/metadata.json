@@ -1,0 +1,69 @@
+{
+  "function_id": "F04",
+  "function_name": "join_customers_orders",
+  "run_id": "run_05",
+  "provider": "DeepSeek",
+  "model": "deepseek-v4-flash",
+  "experiment_id": "exp_10_functions",
+  "temperature": 0.7,
+  "top_p": 1.0,
+  "max_tokens": 4096,
+  "timestamp_utc": "2026-06-30T12:11:51Z",
+  "prompt_hash": "6f80df33c7e4922f10e12daa65d787d32504f459894982063f02c3727885256b",
+  "function_code_hash": "41e8f9bada16db972b489adf2d3e4a0505f47aca71aded27ba1f3ecce73603dc",
+  "correct_module_hash": "fd460eb80610247b4c665048ebdab8afd25394f9a4e38b9344d2133ed387507e",
+  "config_hash": "033eb5d9399d671a8abae32dac2225166f2e885ffab5aac80a9036c7619c5e69",
+  "response_hash": "3b35779d6c634c214e04aa2ee194e6f4e9aa261bba6c282dce380959a17dd0dd",
+  "syntax_valid": true,
+  "overwrite_used": false,
+  "success": true,
+  "error": null,
+  "usage": {
+    "completion_tokens": 3779,
+    "prompt_tokens": 1277,
+    "total_tokens": 5056,
+    "completion_tokens_details": {
+      "accepted_prediction_tokens": null,
+      "audio_tokens": null,
+      "reasoning_tokens": 789,
+      "rejected_prediction_tokens": null
+    },
+    "prompt_tokens_details": {
+      "audio_tokens": null,
+      "cached_tokens": 1152
+    },
+    "prompt_cache_hit_tokens": 1152,
+    "prompt_cache_miss_tokens": 125
+  },
+  "generated_by": "LLM-generated pytest suite for the ISE26 experiment",
+  "request_messages": [
+    {
+      "role": "system",
+      "content": "You generate pytest suites for Python data-transformation functions. Return only valid Python code for the test file and do not include Markdown fences."
+    },
+    {
+      "role": "user",
+      "content": "# Template oficial de geração de testes do ISE26\n\nGere uma suíte de testes em `pytest` para a função Python descrita abaixo.\n\nRequisitos obrigatórios:\n\n- Importe a função somente a partir de `ise26.targets`.\n- Use `pytest`.\n- Não altere, não reimplemente e não envolva a função original.\n- Não use API externa, arquivos externos, rede, banco de dados ou recursos fora do próprio teste.\n- Crie os `DataFrame`s sintéticos necessários dentro do próprio arquivo de teste.\n- Cubra casos comuns e casos de borda.\n- Quando fizer sentido, considere valores nulos, duplicatas, datas, schema e regras de negócio.\n- Verifique comportamento por meio de valores retornados e estruturas produzidas pela função.\n- Retorne apenas código Python do arquivo de teste.\n- Não inclua cercas Markdown.\n- Não inclua explicações fora do código.\n\nImportação esperada:\n\n```python\nfrom ise26.targets import join_customers_orders\n```\n\nMetadados da função:\n\n- ID da função: `F04`\n- Nome da função: `join_customers_orders`\n- Descrição resumida: `Perform a deterministic full outer join between customers and orders, handling null keys explicitly and annotating each row with a record status.`\n\nDocstring da função:\n\n```text\nJoin customer and order datasets using a full outer join.\n\nThe output preserves unmatched rows from both inputs and annotates the join\noutcome through the ``record_status`` column. Null join keys are handled\nexplicitly so rows with missing identifiers are never classified as\n``matched``. The result is also sorted deterministically and returned with\na reset index.\n\nArgs:\n    customers: Customer DataFrame.\n    orders: Order DataFrame.\n    customer_key: Join key shared by both datasets.\n\nReturns:\n    A new DataFrame containing the full outer join plus a status label.\n```\n\nComportamento esperado:\n\n`Perform a deterministic full outer join, preserve unmatched rows from both inputs, classify rows as matched, customer_without_order, or order_without_customer, never mark rows with null join keys as matched, reset the index, and keep the original DataFrames unchanged.`\n\nCódigo da função correta:\n\n```python\ndef join_customers_orders(\n    customers: pd.DataFrame,\n    orders: pd.DataFrame,\n    customer_key: str = \"customer_id\",\n) -> pd.DataFrame:\n    \"\"\"Join customer and order datasets using a full outer join.\n\n    The output preserves unmatched rows from both inputs and annotates the join\n    outcome through the ``record_status`` column. Null join keys are handled\n    explicitly so rows with missing identifiers are never classified as\n    ``matched``. The result is also sorted deterministically and returned with\n    a reset index.\n\n    Args:\n        customers: Customer DataFrame.\n        orders: Order DataFrame.\n        customer_key: Join key shared by both datasets.\n\n    Returns:\n        A new DataFrame containing the full outer join plus a status label.\n    \"\"\"\n\n    customers_copy = _clone_dataframe(customers)\n    orders_copy = _clone_dataframe(orders)\n\n    customers_copy[\"_customer_source_order\"] = range(len(customers_copy))\n    orders_copy[\"_order_source_order\"] = range(len(orders_copy))\n\n    customers_with_key = customers_copy[customers_copy[customer_key].notna()].copy()\n    customers_without_key = customers_copy[customers_copy[customer_key].isna()].copy()\n    orders_with_key = orders_copy[orders_copy[customer_key].notna()].copy()\n    orders_without_key = orders_copy[orders_copy[customer_key].isna()].copy()\n\n    merged_with_keys = customers_with_key.merge(\n        orders_with_key,\n        on=customer_key,\n        how=\"outer\",\n        indicator=True,\n        sort=False,\n    )\n\n    status_mapping = {\n        \"both\": \"matched\",\n        \"left_only\": \"customer_without_order\",\n        \"right_only\": \"order_without_customer\",\n    }\n    merged_with_keys[\"record_status\"] = merged_with_keys[\"_merge\"].map(status_mapping)\n    merged_with_keys[\"_sort_order\"] = merged_with_keys[\"_customer_source_order\"].combine_first(\n        merged_with_keys[\"_order_source_order\"]\n    )\n\n    merged_columns = [column_name for column_name in merged_with_keys.columns if column_name != \"_merge\"]\n\n    customer_null_rows = customers_without_key.copy()\n    for column_name in merged_columns:\n        if column_name not in customer_null_rows.columns:\n            customer_null_rows[column_name] = pd.NA\n    customer_null_rows[\"record_status\"] = \"customer_without_order\"\n    customer_null_rows[\"_sort_order\"] = customer_null_rows[\"_customer_source_order\"]\n    customer_null_rows = customer_null_rows[merged_columns]\n\n    order_null_rows = orders_without_key.copy()\n    for column_name in merged_columns:\n        if column_name not in order_null_rows.columns:\n            order_null_rows[column_name] = pd.NA\n    order_null_rows[\"record_status\"] = \"order_without_customer\"\n    order_null_rows[\"_sort_order\"] = order_null_rows[\"_order_source_order\"]\n    order_null_rows = order_null_rows[merged_columns]\n\n    final_result = pd.concat(\n        [\n            merged_with_keys.drop(columns=\"_merge\"),\n            customer_null_rows,\n            order_null_rows,\n        ],\n        ignore_index=True,\n        sort=False,\n    )\n\n    final_result = final_result.sort_values(\n        by=[\"_sort_order\", \"_customer_source_order\", \"_order_source_order\", \"record_status\"],\n        kind=\"stable\",\n        na_position=\"last\",\n    )\n\n    return final_result.drop(\n        columns=[\"_sort_order\", \"_customer_source_order\", \"_order_source_order\"]\n    ).reset_index(drop=True)\n```\n"
+    }
+  ],
+  "parameters": {
+    "model": "deepseek-v4-flash",
+    "temperature": 0.7,
+    "top_p": 1.0,
+    "max_tokens": 4096,
+    "stream": false,
+    "base_url": "https://api.deepseek.com"
+  },
+  "python_version": "3.11.9",
+  "python_implementation": "CPython",
+  "dependency_versions": {
+    "openai": "2.44.0",
+    "python-dotenv": "1.2.2",
+    "pandas": "3.0.4",
+    "pytest": "8.4.2"
+  },
+  "git_commit": "3c5165b8402eabc1d7d66f081bc7606f6c11cdb9",
+  "command_executed": "C:\\Users\\User\\AppData\\Local\\Microsoft\\WindowsApps\\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\\python.exe scripts/generate_llm_tests.py --execute --experiment-id exp_10_functions --config experiments/config/deepseek_v4_flash_10_functions.json",
+  "extraction_mode": "raw_text",
+  "syntax_error": null
+}

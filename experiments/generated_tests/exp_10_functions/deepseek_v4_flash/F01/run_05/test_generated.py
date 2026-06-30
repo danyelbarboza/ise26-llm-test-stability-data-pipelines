@@ -1,4 +1,80 @@
-"""Placeholder file created by the LLM generation infrastructure."""
+import pandas as pd
+import pytest
+from ise26.targets import clean_customer_names
 
-# Generation status: placeholder
-# GENERATED_TEST_PLACEHOLDER
+class TestCleanCustomerNames:
+    def test_basic_normalization(self):
+        df = pd.DataFrame({"customer_name": ["  John   Doe  ", "Alice", "BOB"]})
+        result = clean_customer_names(df)
+        expected = df.copy()
+        expected["customer_name_clean"] = ["john doe", "alice", "bob"]
+        pd.testing.assert_frame_equal(result, expected)
+
+    def test_accent_removal(self):
+        df = pd.DataFrame({"customer_name": ["José", "Café", "Alérgico"]})
+        result = clean_customer_names(df)
+        expected = df.copy()
+        expected["customer_name_clean"] = ["jose", "cafe", "alergico"]
+        pd.testing.assert_frame_equal(result, expected)
+
+    def test_null_and_blank_values(self):
+        df = pd.DataFrame({"customer_name": [None, pd.NA, "", "   ", "valid"]})
+        result = clean_customer_names(df)
+        expected = df.copy()
+        expected["customer_name_clean"] = [pd.NA, pd.NA, pd.NA, pd.NA, "valid"]
+        pd.testing.assert_frame_equal(result, expected)
+
+    def test_original_dataframe_not_mutated(self):
+        original_df = pd.DataFrame({"customer_name": ["  Alice  "]})
+        df_copy = original_df.copy()
+        clean_customer_names(original_df)
+        pd.testing.assert_frame_equal(original_df, df_copy)
+
+    def test_custom_column_names(self):
+        df = pd.DataFrame({"raw_name": ["  John   "], "other": [1]})
+        result = clean_customer_names(df, name_col="raw_name", output_col="clean_name")
+        expected = df.copy()
+        expected["clean_name"] = ["john"]
+        pd.testing.assert_frame_equal(result, expected)
+
+    def test_whitespace_only_after_normalization(self):
+        df = pd.DataFrame({"customer_name": ["\t\n  "]})
+        result = clean_customer_names(df)
+        expected = df.copy()
+        expected["customer_name_clean"] = [pd.NA]
+        pd.testing.assert_frame_equal(result, expected)
+
+    def test_multiple_whitespace_and_accents(self):
+        df = pd.DataFrame({"customer_name": ["   MÜLLER   ", "  São  Paulo  "]})
+        result = clean_customer_names(df)
+        expected = df.copy()
+        expected["customer_name_clean"] = ["müller", "são paulo"]
+        pd.testing.assert_frame_equal(result, expected)
+
+    def test_duplicated_names(self):
+        df = pd.DataFrame({"customer_name": ["Alice", "  ALICE  ", "alice"]})
+        result = clean_customer_names(df)
+        expected = df.copy()
+        expected["customer_name_clean"] = ["alice", "alice", "alice"]
+        pd.testing.assert_frame_equal(result, expected)
+
+    def test_empty_dataframe(self):
+        df = pd.DataFrame({"customer_name": pd.Series(dtype="object")})
+        result = clean_customer_names(df)
+        expected = df.copy()
+        expected["customer_name_clean"] = pd.Series(dtype="object")
+        pd.testing.assert_frame_equal(result, expected)
+
+    def test_preserves_other_columns(self):
+        df = pd.DataFrame({"id": [1, 2], "customer_name": ["Alice", "Bob"]})
+        result = clean_customer_names(df)
+        expected = df.copy()
+        expected["customer_name_clean"] = ["alice", "bob"]
+        pd.testing.assert_frame_equal(result, expected)
+
+    def test_numeric_or_mixed_types_in_name_col(self):
+        df = pd.DataFrame({"customer_name": [123, " 456 ", None]})
+        result = clean_customer_names(df)
+        expected = df.copy()
+        expected["customer_name_clean"] = ["123", "456", pd.NA]
+        pd.testing.assert_frame_equal(result, expected)

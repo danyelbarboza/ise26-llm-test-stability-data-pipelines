@@ -1,0 +1,69 @@
+{
+  "function_id": "F06",
+  "function_name": "classify_payment_status",
+  "run_id": "run_02",
+  "provider": "DeepSeek",
+  "model": "deepseek-v4-flash",
+  "experiment_id": "exp_10_functions",
+  "temperature": 0.7,
+  "top_p": 1.0,
+  "max_tokens": 4096,
+  "timestamp_utc": "2026-06-30T12:14:03Z",
+  "prompt_hash": "736533e551191bc47c1a48512e8f4a6ba1c135d1cd70619157c1263cf269c321",
+  "function_code_hash": "2a66bf402f1deccb99b216a28e3e2d4eb5d8bc05c10efdf0ab225929120b8258",
+  "correct_module_hash": "fd460eb80610247b4c665048ebdab8afd25394f9a4e38b9344d2133ed387507e",
+  "config_hash": "033eb5d9399d671a8abae32dac2225166f2e885ffab5aac80a9036c7619c5e69",
+  "response_hash": "09604967e934aedd13de200fc7cd03005f13e076103c476733bef36090413153",
+  "syntax_valid": true,
+  "overwrite_used": false,
+  "success": true,
+  "error": null,
+  "usage": {
+    "completion_tokens": 2949,
+    "prompt_tokens": 1234,
+    "total_tokens": 4183,
+    "completion_tokens_details": {
+      "accepted_prediction_tokens": null,
+      "audio_tokens": null,
+      "reasoning_tokens": 777,
+      "rejected_prediction_tokens": null
+    },
+    "prompt_tokens_details": {
+      "audio_tokens": null,
+      "cached_tokens": 1152
+    },
+    "prompt_cache_hit_tokens": 1152,
+    "prompt_cache_miss_tokens": 82
+  },
+  "generated_by": "LLM-generated pytest suite for the ISE26 experiment",
+  "request_messages": [
+    {
+      "role": "system",
+      "content": "You generate pytest suites for Python data-transformation functions. Return only valid Python code for the test file and do not include Markdown fences."
+    },
+    {
+      "role": "user",
+      "content": "# Template oficial de geração de testes do ISE26\n\nGere uma suíte de testes em `pytest` para a função Python descrita abaixo.\n\nRequisitos obrigatórios:\n\n- Importe a função somente a partir de `ise26.targets`.\n- Use `pytest`.\n- Não altere, não reimplemente e não envolva a função original.\n- Não use API externa, arquivos externos, rede, banco de dados ou recursos fora do próprio teste.\n- Crie os `DataFrame`s sintéticos necessários dentro do próprio arquivo de teste.\n- Cubra casos comuns e casos de borda.\n- Quando fizer sentido, considere valores nulos, duplicatas, datas, schema e regras de negócio.\n- Verifique comportamento por meio de valores retornados e estruturas produzidas pela função.\n- Retorne apenas código Python do arquivo de teste.\n- Não inclua cercas Markdown.\n- Não inclua explicações fora do código.\n\nImportação esperada:\n\n```python\nfrom ise26.targets import classify_payment_status\n```\n\nMetadados da função:\n\n- ID da função: `F06`\n- Nome da função: `classify_payment_status`\n- Descrição resumida: `Classify payment rows as invalid, paid on time, paid late, overdue, or pending, treating invalid provided payment dates as invalid.`\n\nDocstring da função:\n\n```text\nClassify each payment row according to due date, payment date, and amount.\n\nInvalid monetary values and invalid due dates are immediately marked as\n``invalid``. A provided but invalid paid date is also classified as\n``invalid`` instead of being treated as a missing payment. Valid paid dates\nare compared against the due date, while genuinely unpaid rows are\nclassified relative to the provided reference date.\n\nArgs:\n    df: Source DataFrame with payment information.\n    reference_date: Date used to classify unpaid records as pending or overdue.\n    due_date_col: Column containing the due date.\n    paid_date_col: Column containing the payment date.\n    amount_col: Column containing the payment amount.\n    output_col: Name of the output classification column.\n\nReturns:\n    A new DataFrame with the payment status column added.\n```\n\nComportamento esperado:\n\n`Mark rows as invalid when amount is missing, non-numeric, or less than or equal to zero, when due_date is invalid, or when a provided paid_date is invalid; otherwise classify as paid_on_time, paid_late, overdue, or pending based on due_date, paid_date, and a valid reference_date.`\n\nCódigo da função correta:\n\n```python\ndef classify_payment_status(\n    df: pd.DataFrame,\n    reference_date: Any,\n    due_date_col: str = \"due_date\",\n    paid_date_col: str = \"paid_date\",\n    amount_col: str = \"amount\",\n    output_col: str = \"payment_status\",\n) -> pd.DataFrame:\n    \"\"\"Classify each payment row according to due date, payment date, and amount.\n\n    Invalid monetary values and invalid due dates are immediately marked as\n    ``invalid``. A provided but invalid paid date is also classified as\n    ``invalid`` instead of being treated as a missing payment. Valid paid dates\n    are compared against the due date, while genuinely unpaid rows are\n    classified relative to the provided reference date.\n\n    Args:\n        df: Source DataFrame with payment information.\n        reference_date: Date used to classify unpaid records as pending or overdue.\n        due_date_col: Column containing the due date.\n        paid_date_col: Column containing the payment date.\n        amount_col: Column containing the payment amount.\n        output_col: Name of the output classification column.\n\n    Returns:\n        A new DataFrame with the payment status column added.\n    \"\"\"\n\n    parsed_reference_date = pd.to_datetime(reference_date, errors=\"coerce\")\n    if pd.isna(parsed_reference_date):\n        raise ValueError(\"reference_date must be a valid date-like value\")\n\n    result = _clone_dataframe(df)\n    due_dates = pd.to_datetime(result[due_date_col], errors=\"coerce\")\n    paid_dates = pd.to_datetime(result[paid_date_col], errors=\"coerce\")\n    amounts = pd.to_numeric(result[amount_col], errors=\"coerce\")\n    paid_date_text = result[paid_date_col].astype(\"string\").str.strip()\n    paid_date_provided = result[paid_date_col].notna() & paid_date_text.ne(\"\").fillna(False)\n\n    statuses = pd.Series(index=result.index, dtype=\"object\")\n\n    invalid_paid_date_mask = paid_date_provided & paid_dates.isna()\n    invalid_mask = due_dates.isna() | amounts.isna() | (amounts <= 0) | invalid_paid_date_mask\n    statuses.loc[invalid_mask] = \"invalid\"\n\n    paid_on_time_mask = (~invalid_mask) & paid_dates.notna() & (paid_dates <= due_dates)\n    statuses.loc[paid_on_time_mask] = \"paid_on_time\"\n\n    paid_late_mask = (~invalid_mask) & paid_dates.notna() & (paid_dates > due_dates)\n    statuses.loc[paid_late_mask] = \"paid_late\"\n\n    unpaid_mask = (~invalid_mask) & paid_dates.isna()\n    overdue_mask = unpaid_mask & (parsed_reference_date > due_dates)\n    pending_mask = unpaid_mask & (parsed_reference_date <= due_dates)\n\n    statuses.loc[overdue_mask] = \"overdue\"\n    statuses.loc[pending_mask] = \"pending\"\n\n    result[output_col] = statuses\n    return result\n```\n"
+    }
+  ],
+  "parameters": {
+    "model": "deepseek-v4-flash",
+    "temperature": 0.7,
+    "top_p": 1.0,
+    "max_tokens": 4096,
+    "stream": false,
+    "base_url": "https://api.deepseek.com"
+  },
+  "python_version": "3.11.9",
+  "python_implementation": "CPython",
+  "dependency_versions": {
+    "openai": "2.44.0",
+    "python-dotenv": "1.2.2",
+    "pandas": "3.0.4",
+    "pytest": "8.4.2"
+  },
+  "git_commit": "3c5165b8402eabc1d7d66f081bc7606f6c11cdb9",
+  "command_executed": "C:\\Users\\User\\AppData\\Local\\Microsoft\\WindowsApps\\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\\python.exe scripts/generate_llm_tests.py --execute --experiment-id exp_10_functions --config experiments/config/deepseek_v4_flash_10_functions.json",
+  "extraction_mode": "markdown_python",
+  "syntax_error": null
+}

@@ -31,4 +31,4 @@ Esta pasta raiz existe por compatibilidade e documentação. Os resumos oficiais
 
 ## Atenção
 
-Os resumos só têm valor experimental quando são derivados de suítes reais e não de placeholders.
+Os resumos só têm valor experimental quando são derivados de suítes reais e não de placeholders. Na expansão `exp_10_functions`, os resumos oficiais já refletem os resultados reais do Flash e do Pro.

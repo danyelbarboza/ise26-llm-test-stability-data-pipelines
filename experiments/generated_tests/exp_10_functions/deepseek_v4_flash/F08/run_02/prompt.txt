@@ -1,0 +1,103 @@
+# Template oficial de geração de testes do ISE26
+
+Gere uma suíte de testes em `pytest` para a função Python descrita abaixo.
+
+Requisitos obrigatórios:
+
+- Importe a função somente a partir de `ise26.targets`.
+- Use `pytest`.
+- Não altere, não reimplemente e não envolva a função original.
+- Não use API externa, arquivos externos, rede, banco de dados ou recursos fora do próprio teste.
+- Crie os `DataFrame`s sintéticos necessários dentro do próprio arquivo de teste.
+- Cubra casos comuns e casos de borda.
+- Quando fizer sentido, considere valores nulos, duplicatas, datas, schema e regras de negócio.
+- Verifique comportamento por meio de valores retornados e estruturas produzidas pela função.
+- Retorne apenas código Python do arquivo de teste.
+- Não inclua cercas Markdown.
+- Não inclua explicações fora do código.
+
+Importação esperada:
+
+```python
+from ise26.targets import calculate_conversion_rate
+```
+
+Metadados da função:
+
+- ID da função: `F08`
+- Nome da função: `calculate_conversion_rate`
+- Descrição resumida: `Aggregate visits and conversions by channel and compute the conversion rate.`
+
+Docstring da função:
+
+```text
+Aggregate conversion metrics and compute the conversion rate.
+
+Missing or invalid numeric values are treated as zero before aggregation.
+Channels are sorted alphabetically in the returned DataFrame.
+
+Args:
+    df: Source DataFrame with channel-level activity metrics.
+    group_col: Column that identifies the grouping dimension.
+    visits_col: Column containing visit counts.
+    conversions_col: Column containing conversion counts.
+
+Returns:
+    A new DataFrame with ``channel``, ``visits``, ``conversions``, and
+    ``conversion_rate`` columns.
+```
+
+Comportamento esperado:
+
+`Group rows by channel, sum visits and conversions with invalid or missing values treated as zero, compute conversion_rate as conversions divided by visits, return zero when visits are zero or invalid, and sort the output by channel.`
+
+Código da função correta:
+
+```python
+def calculate_conversion_rate(
+    df: pd.DataFrame,
+    group_col: str = "channel",
+    visits_col: str = "visits",
+    conversions_col: str = "conversions",
+) -> pd.DataFrame:
+    """Aggregate conversion metrics and compute the conversion rate.
+
+    Missing or invalid numeric values are treated as zero before aggregation.
+    Channels are sorted alphabetically in the returned DataFrame.
+
+    Args:
+        df: Source DataFrame with channel-level activity metrics.
+        group_col: Column that identifies the grouping dimension.
+        visits_col: Column containing visit counts.
+        conversions_col: Column containing conversion counts.
+
+    Returns:
+        A new DataFrame with ``channel``, ``visits``, ``conversions``, and
+        ``conversion_rate`` columns.
+    """
+
+    result = _clone_dataframe(df)
+    aggregated = pd.DataFrame(
+        {
+            group_col: result[group_col],
+            "_visits": pd.to_numeric(result[visits_col], errors="coerce").fillna(0),
+            "_conversions": pd.to_numeric(result[conversions_col], errors="coerce").fillna(0),
+        }
+    )
+
+    grouped = (
+        aggregated.groupby(group_col, as_index=False, dropna=False)[["_visits", "_conversions"]]
+        .sum()
+        .sort_values(group_col, kind="stable")
+        .reset_index(drop=True)
+    )
+
+    grouped["visits"] = grouped["_visits"].astype(float)
+    grouped["conversions"] = grouped["_conversions"].astype(float)
+    grouped["conversion_rate"] = grouped.apply(
+        lambda row: 0.0 if row["visits"] <= 0 else float(row["conversions"] / row["visits"]),
+        axis=1,
+    )
+
+    return grouped[[group_col, "visits", "conversions", "conversion_rate"]]
+```

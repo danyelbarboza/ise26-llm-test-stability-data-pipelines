@@ -1,0 +1,96 @@
+# Template oficial de geração de testes do ISE26
+
+Gere uma suíte de testes em `pytest` para a função Python descrita abaixo.
+
+Requisitos obrigatórios:
+
+- Importe a função somente a partir de `ise26.targets`.
+- Use `pytest`.
+- Não altere, não reimplemente e não envolva a função original.
+- Não use API externa, arquivos externos, rede, banco de dados ou recursos fora do próprio teste.
+- Crie os `DataFrame`s sintéticos necessários dentro do próprio arquivo de teste.
+- Cubra casos comuns e casos de borda.
+- Quando fizer sentido, considere valores nulos, duplicatas, datas, schema e regras de negócio.
+- Verifique comportamento por meio de valores retornados e estruturas produzidas pela função.
+- Retorne apenas código Python do arquivo de teste.
+- Não inclua cercas Markdown.
+- Não inclua explicações fora do código.
+
+Importação esperada:
+
+```python
+from ise26.targets import cap_outliers_iqr
+```
+
+Metadados da função:
+
+- ID da função: `F09`
+- Nome da função: `cap_outliers_iqr`
+- Descrição resumida: `Cap numeric outliers using the interquartile range without mutating the original values.`
+
+Docstring da função:
+
+```text
+Cap numeric outliers using the IQR rule without mutating the input.
+
+Missing or invalid values stay missing in the capped output column. The
+original numeric column is preserved unchanged.
+
+Args:
+    df: Source DataFrame with the numeric values to cap.
+    value_col: Column containing the original values.
+    output_col: Name of the capped output column.
+
+Returns:
+    A new DataFrame with an additional capped numeric column.
+```
+
+Comportamento esperado:
+
+`Compute Q1 and Q3 from the valid numeric values, derive lower and upper IQR bounds, cap values outside those limits into a new output column, and keep invalid or missing values as missing.`
+
+Código da função correta:
+
+```python
+def cap_outliers_iqr(
+    df: pd.DataFrame,
+    value_col: str = "amount",
+    output_col: str = "amount_capped",
+) -> pd.DataFrame:
+    """Cap numeric outliers using the IQR rule without mutating the input.
+
+    Missing or invalid values stay missing in the capped output column. The
+    original numeric column is preserved unchanged.
+
+    Args:
+        df: Source DataFrame with the numeric values to cap.
+        value_col: Column containing the original values.
+        output_col: Name of the capped output column.
+
+    Returns:
+        A new DataFrame with an additional capped numeric column.
+    """
+
+    result = _clone_dataframe(df)
+    numeric_values = pd.to_numeric(result[value_col], errors="coerce")
+    valid_values = numeric_values.dropna()
+
+    if valid_values.empty:
+        result[output_col] = pd.Series([pd.NA] * len(result), index=result.index, dtype="Float64")
+        return result
+
+    q1 = float(valid_values.quantile(0.25))
+    q3 = float(valid_values.quantile(0.75))
+    iqr = q3 - q1
+    lower_bound = q1 - 1.5 * iqr
+    upper_bound = q3 + 1.5 * iqr
+
+    capped_values = [
+        pd.NA
+        if pd.isna(value)
+        else float(min(max(float(value), lower_bound), upper_bound))
+        for value in numeric_values
+    ]
+    result[output_col] = pd.Series(capped_values, index=result.index, dtype="Float64")
+    return result
+```

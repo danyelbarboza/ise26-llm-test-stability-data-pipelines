@@ -1,0 +1,69 @@
+{
+  "function_id": "F07",
+  "function_name": "parse_order_items_json",
+  "run_id": "run_01",
+  "provider": "DeepSeek",
+  "model": "deepseek-v4-pro",
+  "experiment_id": "exp_10_functions",
+  "temperature": 0.7,
+  "top_p": 1.0,
+  "max_tokens": 4096,
+  "timestamp_utc": "2026-06-30T12:46:55Z",
+  "prompt_hash": "105cfd41d32ba9a88672bb3fb6f21f12e2f78a6b7a0a5a6a6f1189a35a0af262",
+  "function_code_hash": "17603b44bd7493de948e01459a2c651cb0811200e38057aba924574254b8589c",
+  "correct_module_hash": "fd460eb80610247b4c665048ebdab8afd25394f9a4e38b9344d2133ed387507e",
+  "config_hash": "9587e94bcadb3bf6328a747de1856ce3cb6d4d600f8e3372709e7f70d5635937",
+  "response_hash": "1fc1a72335843901c2403c11741e7c1dc217efe8e959a9cf1f7f4b03f7c0bd92",
+  "syntax_valid": true,
+  "overwrite_used": false,
+  "success": true,
+  "error": null,
+  "usage": {
+    "completion_tokens": 3646,
+    "prompt_tokens": 1051,
+    "total_tokens": 4697,
+    "completion_tokens_details": {
+      "accepted_prediction_tokens": null,
+      "audio_tokens": null,
+      "reasoning_tokens": 1500,
+      "rejected_prediction_tokens": null
+    },
+    "prompt_tokens_details": {
+      "audio_tokens": null,
+      "cached_tokens": 256
+    },
+    "prompt_cache_hit_tokens": 256,
+    "prompt_cache_miss_tokens": 795
+  },
+  "generated_by": "LLM-generated pytest suite for the ISE26 experiment",
+  "request_messages": [
+    {
+      "role": "system",
+      "content": "You generate pytest suites for Python data-transformation functions. Return only valid Python code for the test file and do not include Markdown fences."
+    },
+    {
+      "role": "user",
+      "content": "# Template oficial de geração de testes do ISE26\n\nGere uma suíte de testes em `pytest` para a função Python descrita abaixo.\n\nRequisitos obrigatórios:\n\n- Importe a função somente a partir de `ise26.targets`.\n- Use `pytest`.\n- Não altere, não reimplemente e não envolva a função original.\n- Não use API externa, arquivos externos, rede, banco de dados ou recursos fora do próprio teste.\n- Crie os `DataFrame`s sintéticos necessários dentro do próprio arquivo de teste.\n- Cubra casos comuns e casos de borda.\n- Quando fizer sentido, considere valores nulos, duplicatas, datas, schema e regras de negócio.\n- Verifique comportamento por meio de valores retornados e estruturas produzidas pela função.\n- Retorne apenas código Python do arquivo de teste.\n- Não inclua cercas Markdown.\n- Não inclua explicações fora do código.\n\nImportação esperada:\n\n```python\nfrom ise26.targets import parse_order_items_json\n```\n\nMetadados da função:\n\n- ID da função: `F07`\n- Nome da função: `parse_order_items_json`\n- Descrição resumida: `Expand JSON-encoded order items into one row per item while preserving order identifiers.`\n\nDocstring da função:\n\n```text\nExplode JSON-encoded order items into one row per item.\n\nThe function skips invalid, empty, or missing JSON payloads. Each valid item\nkeeps the originating order identifier, and quantity or unit price values\nthat cannot be parsed are converted to zero before computing ``item_total``.\n\nArgs:\n    df: Source DataFrame containing JSON-encoded item lists.\n    json_col: Column that stores the JSON payload.\n    order_id_col: Column that identifies the order.\n\nReturns:\n    A new DataFrame with one row per item and the columns ``order_id``,\n    ``sku``, ``quantity``, ``unit_price``, and ``item_total``. When a\n    custom ``order_id_col`` is provided, that same name is preserved in the\n    output.\n```\n\nComportamento esperado:\n\n`Parse each JSON list of order items, explode valid items into separate rows, keep the order identifier, compute item_total as quantity multiplied by unit_price, treat invalid or missing quantity and unit_price values as zero, and skip rows with invalid, empty, or missing JSON payloads.`\n\nCódigo da função correta:\n\n```python\ndef parse_order_items_json(\n    df: pd.DataFrame,\n    json_col: str = \"items_json\",\n    order_id_col: str = \"order_id\",\n) -> pd.DataFrame:\n    \"\"\"Explode JSON-encoded order items into one row per item.\n\n    The function skips invalid, empty, or missing JSON payloads. Each valid item\n    keeps the originating order identifier, and quantity or unit price values\n    that cannot be parsed are converted to zero before computing ``item_total``.\n\n    Args:\n        df: Source DataFrame containing JSON-encoded item lists.\n        json_col: Column that stores the JSON payload.\n        order_id_col: Column that identifies the order.\n\n    Returns:\n        A new DataFrame with one row per item and the columns ``order_id``,\n        ``sku``, ``quantity``, ``unit_price``, and ``item_total``. When a\n        custom ``order_id_col`` is provided, that same name is preserved in the\n        output.\n    \"\"\"\n\n    result = _clone_dataframe(df)\n    output_records: list[dict[str, Any]] = []\n\n    for source_order, (_, row) in enumerate(result.iterrows()):\n        item_payloads = _parse_order_items_payload(row[json_col])\n        for item_order, item_payload in enumerate(item_payloads):\n            quantity = _coerce_numeric_or_zero(item_payload.get(\"quantity\"))\n            unit_price = _coerce_numeric_or_zero(item_payload.get(\"unit_price\"))\n\n            output_records.append(\n                {\n                    order_id_col: row[order_id_col],\n                    \"sku\": _normalize_optional_text(item_payload.get(\"sku\")),\n                    \"quantity\": quantity,\n                    \"unit_price\": unit_price,\n                    \"item_total\": quantity * unit_price,\n                    \"_source_order\": source_order,\n                    \"_item_order\": item_order,\n                }\n            )\n\n    output_columns = [order_id_col, \"sku\", \"quantity\", \"unit_price\", \"item_total\"]\n    if not output_records:\n        return pd.DataFrame(columns=output_columns)\n\n    exploded_items = pd.DataFrame.from_records(output_records)\n    exploded_items = exploded_items.sort_values(\n        by=[\"_source_order\", \"_item_order\"],\n        kind=\"stable\",\n    )\n\n    return exploded_items[output_columns].reset_index(drop=True)\n```\n"
+    }
+  ],
+  "parameters": {
+    "model": "deepseek-v4-pro",
+    "temperature": 0.7,
+    "top_p": 1.0,
+    "max_tokens": 4096,
+    "stream": false,
+    "base_url": "https://api.deepseek.com"
+  },
+  "python_version": "3.11.9",
+  "python_implementation": "CPython",
+  "dependency_versions": {
+    "openai": "2.44.0",
+    "python-dotenv": "1.2.2",
+    "pandas": "3.0.4",
+    "pytest": "8.4.2"
+  },
+  "git_commit": "3c5165b8402eabc1d7d66f081bc7606f6c11cdb9",
+  "command_executed": "C:\\Users\\User\\AppData\\Local\\Microsoft\\WindowsApps\\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\\python.exe scripts/generate_llm_tests.py --execute --experiment-id exp_10_functions --config experiments/config/deepseek_v4_pro_10_functions.json",
+  "extraction_mode": "raw_text",
+  "syntax_error": null
+}

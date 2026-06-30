@@ -1,0 +1,69 @@
+{
+  "function_id": "F08",
+  "function_name": "calculate_conversion_rate",
+  "run_id": "run_01",
+  "provider": "DeepSeek",
+  "model": "deepseek-v4-pro",
+  "experiment_id": "exp_10_functions",
+  "temperature": 0.7,
+  "top_p": 1.0,
+  "max_tokens": 4096,
+  "timestamp_utc": "2026-06-30T12:50:10Z",
+  "prompt_hash": "ea10e844711e55f317a2001485cbac4134e4813dc8f360e712ad7ac5c74e0d96",
+  "function_code_hash": "ff9ba455d24b921fcd6ae75252449d8966290b137c74c54a5682c84ebc119359",
+  "correct_module_hash": "fd460eb80610247b4c665048ebdab8afd25394f9a4e38b9344d2133ed387507e",
+  "config_hash": "9587e94bcadb3bf6328a747de1856ce3cb6d4d600f8e3372709e7f70d5635937",
+  "response_hash": "9fae32d92692beb432d6e118c5f6545022386bb1e0bc26a5fd7b6b8ec4d2a912",
+  "syntax_valid": true,
+  "overwrite_used": false,
+  "success": true,
+  "error": null,
+  "usage": {
+    "completion_tokens": 3407,
+    "prompt_tokens": 889,
+    "total_tokens": 4296,
+    "completion_tokens_details": {
+      "accepted_prediction_tokens": null,
+      "audio_tokens": null,
+      "reasoning_tokens": 1101,
+      "rejected_prediction_tokens": null
+    },
+    "prompt_tokens_details": {
+      "audio_tokens": null,
+      "cached_tokens": 256
+    },
+    "prompt_cache_hit_tokens": 256,
+    "prompt_cache_miss_tokens": 633
+  },
+  "generated_by": "LLM-generated pytest suite for the ISE26 experiment",
+  "request_messages": [
+    {
+      "role": "system",
+      "content": "You generate pytest suites for Python data-transformation functions. Return only valid Python code for the test file and do not include Markdown fences."
+    },
+    {
+      "role": "user",
+      "content": "# Template oficial de geração de testes do ISE26\n\nGere uma suíte de testes em `pytest` para a função Python descrita abaixo.\n\nRequisitos obrigatórios:\n\n- Importe a função somente a partir de `ise26.targets`.\n- Use `pytest`.\n- Não altere, não reimplemente e não envolva a função original.\n- Não use API externa, arquivos externos, rede, banco de dados ou recursos fora do próprio teste.\n- Crie os `DataFrame`s sintéticos necessários dentro do próprio arquivo de teste.\n- Cubra casos comuns e casos de borda.\n- Quando fizer sentido, considere valores nulos, duplicatas, datas, schema e regras de negócio.\n- Verifique comportamento por meio de valores retornados e estruturas produzidas pela função.\n- Retorne apenas código Python do arquivo de teste.\n- Não inclua cercas Markdown.\n- Não inclua explicações fora do código.\n\nImportação esperada:\n\n```python\nfrom ise26.targets import calculate_conversion_rate\n```\n\nMetadados da função:\n\n- ID da função: `F08`\n- Nome da função: `calculate_conversion_rate`\n- Descrição resumida: `Aggregate visits and conversions by channel and compute the conversion rate.`\n\nDocstring da função:\n\n```text\nAggregate conversion metrics and compute the conversion rate.\n\nMissing or invalid numeric values are treated as zero before aggregation.\nChannels are sorted alphabetically in the returned DataFrame.\n\nArgs:\n    df: Source DataFrame with channel-level activity metrics.\n    group_col: Column that identifies the grouping dimension.\n    visits_col: Column containing visit counts.\n    conversions_col: Column containing conversion counts.\n\nReturns:\n    A new DataFrame with ``channel``, ``visits``, ``conversions``, and\n    ``conversion_rate`` columns.\n```\n\nComportamento esperado:\n\n`Group rows by channel, sum visits and conversions with invalid or missing values treated as zero, compute conversion_rate as conversions divided by visits, return zero when visits are zero or invalid, and sort the output by channel.`\n\nCódigo da função correta:\n\n```python\ndef calculate_conversion_rate(\n    df: pd.DataFrame,\n    group_col: str = \"channel\",\n    visits_col: str = \"visits\",\n    conversions_col: str = \"conversions\",\n) -> pd.DataFrame:\n    \"\"\"Aggregate conversion metrics and compute the conversion rate.\n\n    Missing or invalid numeric values are treated as zero before aggregation.\n    Channels are sorted alphabetically in the returned DataFrame.\n\n    Args:\n        df: Source DataFrame with channel-level activity metrics.\n        group_col: Column that identifies the grouping dimension.\n        visits_col: Column containing visit counts.\n        conversions_col: Column containing conversion counts.\n\n    Returns:\n        A new DataFrame with ``channel``, ``visits``, ``conversions``, and\n        ``conversion_rate`` columns.\n    \"\"\"\n\n    result = _clone_dataframe(df)\n    aggregated = pd.DataFrame(\n        {\n            group_col: result[group_col],\n            \"_visits\": pd.to_numeric(result[visits_col], errors=\"coerce\").fillna(0),\n            \"_conversions\": pd.to_numeric(result[conversions_col], errors=\"coerce\").fillna(0),\n        }\n    )\n\n    grouped = (\n        aggregated.groupby(group_col, as_index=False, dropna=False)[[\"_visits\", \"_conversions\"]]\n        .sum()\n        .sort_values(group_col, kind=\"stable\")\n        .reset_index(drop=True)\n    )\n\n    grouped[\"visits\"] = grouped[\"_visits\"].astype(float)\n    grouped[\"conversions\"] = grouped[\"_conversions\"].astype(float)\n    grouped[\"conversion_rate\"] = grouped.apply(\n        lambda row: 0.0 if row[\"visits\"] <= 0 else float(row[\"conversions\"] / row[\"visits\"]),\n        axis=1,\n    )\n\n    return grouped[[group_col, \"visits\", \"conversions\", \"conversion_rate\"]]\n```\n"
+    }
+  ],
+  "parameters": {
+    "model": "deepseek-v4-pro",
+    "temperature": 0.7,
+    "top_p": 1.0,
+    "max_tokens": 4096,
+    "stream": false,
+    "base_url": "https://api.deepseek.com"
+  },
+  "python_version": "3.11.9",
+  "python_implementation": "CPython",
+  "dependency_versions": {
+    "openai": "2.44.0",
+    "python-dotenv": "1.2.2",
+    "pandas": "3.0.4",
+    "pytest": "8.4.2"
+  },
+  "git_commit": "3c5165b8402eabc1d7d66f081bc7606f6c11cdb9",
+  "command_executed": "C:\\Users\\User\\AppData\\Local\\Microsoft\\WindowsApps\\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\\python.exe scripts/generate_llm_tests.py --execute --experiment-id exp_10_functions --config experiments/config/deepseek_v4_pro_10_functions.json",
+  "extraction_mode": "raw_text",
+  "syntax_error": null
+}

@@ -1,0 +1,120 @@
+```python
+import pandas as pd
+import pytest
+from ise26.targets import cap_outliers_iqr
+
+
+class TestCapOutliersIqr:
+    def test_basic_capping(self):
+        df = pd.DataFrame({"amount": [10, 20, 30, 40, 100]})
+        result = cap_outliers_iqr(df, value_col="amount", output_col="capped")
+        # Q1=20, Q3=40, IQR=20, lower=20-30=-10, upper=40+30=70
+        # 100 is outlier -> capped to 70
+        expected_capped = [10.0, 20.0, 30.0, 40.0, 70.0]
+        assert result["capped"].tolist() == expected_capped
+        # Original column unchanged
+        assert result["amount"].tolist() == [10, 20, 30, 40, 100]
+
+    def test_no_outliers(self):
+        df = pd.DataFrame({"val": [1, 2, 3, 4, 5]})
+        result = cap_outliers_iqr(df, value_col="val", output_col="capped")
+        # Q1=2, Q3=4, IQR=2, lower=2-3=-1, upper=4+3=7
+        # all within bounds
+        assert result["capped"].tolist() == [1.0, 2.0, 3.0, 4.0, 5.0]
+
+    def test_outliers_both_sides(self):
+        df = pd.DataFrame({"x": [-100, 10, 20, 30, 40, 200]})
+        result = cap_outliers_iqr(df, value_col="x", output_col="capped")
+        # Q1=10, Q3=40, IQR=30, lower=10-45=-35, upper=40+45=85
+        # -100 => -35, 200 => 85
+        expected = [-35.0, 10.0, 20.0, 30.0, 40.0, 85.0]
+        assert result["capped"].tolist() == expected
+
+    def test_missing_values(self):
+        df = pd.DataFrame({"amount": [5, None, 15, None, 25, 100]})
+        result = cap_outliers_iqr(df)
+        # valid: 5,15,25,100 -> Q1=10, Q3=62.5, IQR=52.5, lower=-68.75, upper=141.25
+        # 100 is within bounds, so no capping but missing stay NA
+        expected_capped = [5.0, pd.NA, 15.0, pd.NA, 25.0, 100.0]
+        capped_col = result["amount_capped"]
+        pd.testing.assert_series_equal(capped_col, pd.Series(expected_capped, dtype="Float64"))
+
+    def test_non_numeric_values(self):
+        df = pd.DataFrame({"amount": [10, "abc", 30, None, 50]})
+        result = cap_outliers_iqr(df)
+        # non-numeric coerced to NaN, valid: 10,30,50 => Q1=20, Q3=40, IQR=20, lower=-10, upper=70
+        # all valid within bounds, missing stay NA
+        expected = [10.0, pd.NA, 30.0, pd.NA, 50.0]
+        pd.testing.assert_series_equal(result["amount_capped"], pd.Series(expected, dtype="Float64"))
+
+    def test_all_identical_values(self):
+        df = pd.DataFrame({"amount": [5, 5, 5, 5]})
+        result = cap_outliers_iqr(df)
+        # Q1=5, Q3=5, IQR=0, lower=5, upper=5, all equal -> no capping
+        assert result["amount_capped"].tolist() == [5.0, 5.0, 5.0, 5.0]
+
+    def test_all_missing(self):
+        df = pd.DataFrame({"amount": [None, None, None]})
+        result = cap_outliers_iqr(df)
+        # all missing -> output col all NA
+        expected = pd.Series([pd.NA, pd.NA, pd.NA], dtype="Float64")
+        pd.testing.assert_series_equal(result["amount_capped"], expected)
+
+    def test_single_valid_value(self):
+        df = pd.DataFrame({"amount": [42]})
+        result = cap_outliers_iqr(df)
+        # single value, Q1=Q3=42, no outlier
+        assert result["amount_capped"].tolist() == [42.0]
+
+    def test_negative_values(self):
+        df = pd.DataFrame({"amount": [-100, -50, -20, 0, 10, 200]})
+        result = cap_outliers_iqr(df, value_col="amount", output_col="capped")
+        # Q1=-50, Q3=10, IQR=60, lower=-50-90=-140, upper=10+90=100
+        # -100 within bounds? -100 > -140 yes, 200 capped to 100
+        expected = [-100.0, -50.0, -20.0, 0.0, 10.0, 100.0]
+        assert result["capped"].tolist() == expected
+
+    def test_dataframe_with_extra_columns(self):
+        df = pd.DataFrame({"id": [1, 2, 3], "amount": [10, 200, 30]})
+        result = cap_outliers_iqr(df)
+        # original columns preserved plus new column
+        assert "id" in result.columns
+        assert "amount" in result.columns
+        assert "amount_capped" in result.columns
+        assert result["amount_capped"].iloc[1] == 70.0  # 200 capped
+
+    def test_original_dataframe_not_mutated(self):
+        df = pd.DataFrame({"amount": [10, 200, 30]})
+        df_copy = df.copy()
+        _ = cap_outliers_iqr(df)
+        pd.testing.assert_frame_equal(df, df_copy)
+
+    def test_default_column_names(self):
+        df = pd.DataFrame({"amount": [1, 2, 3, 4, 100]})
+        result = cap_outliers_iqr(df)
+        # default value_col="amount", output_col="amount_capped"
+        assert "amount_capped" in result.columns
+        # 100 is outlier -> capped to Q3=4, IQR=2, upper=4+3=7 -> 7
+        assert result["amount_capped"].iloc[-1] == 7.0
+
+    def test_capped_column_dtype_float64(self):
+        df = pd.DataFrame({"amount": [1.5, 2.7, 3.2, 10.0]})
+        result = cap_outliers_iqr(df)
+        assert result["amount_capped"].dtype == "Float64"
+
+    def test_zero_iqr_no_capping(self):
+        # when all values same, IQR=0, bounds equal to that value
+        df = pd.DataFrame({"amount": [7, 7, 7]})
+        result = cap_outliers_iqr(df)
+        assert result["amount_capped"].tolist() == [7.0, 7.0, 7.0]
+
+    def test_large_dataset_performance(self):
+        # basic sanity with many rows
+        vals = list(range(1000)) + [10000]  # one clear outlier
+        df = pd.DataFrame({"amount": vals})
+        result = cap_outliers_iqr(df)
+        # Q1=250, Q3=750, IQR=500, lower=-500, upper=1500
+        # 10000 -> 1500
+        assert result["amount_capped"].iloc[-1] == 1500.0
+        assert result.shape[0] == len(vals)
+```

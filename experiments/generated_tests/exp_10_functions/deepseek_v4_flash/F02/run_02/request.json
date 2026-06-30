@@ -1,0 +1,22 @@
+{
+  "provider": "DeepSeek",
+  "base_url": "https://api.deepseek.com",
+  "model": "deepseek-v4-flash",
+  "messages": [
+    {
+      "role": "system",
+      "content": "You generate pytest suites for Python data-transformation functions. Return only valid Python code for the test file and do not include Markdown fences."
+    },
+    {
+      "role": "user",
+      "content": "# Template oficial de geração de testes do ISE26\n\nGere uma suíte de testes em `pytest` para a função Python descrita abaixo.\n\nRequisitos obrigatórios:\n\n- Importe a função somente a partir de `ise26.targets`.\n- Use `pytest`.\n- Não altere, não reimplemente e não envolva a função original.\n- Não use API externa, arquivos externos, rede, banco de dados ou recursos fora do próprio teste.\n- Crie os `DataFrame`s sintéticos necessários dentro do próprio arquivo de teste.\n- Cubra casos comuns e casos de borda.\n- Quando fizer sentido, considere valores nulos, duplicatas, datas, schema e regras de negócio.\n- Verifique comportamento por meio de valores retornados e estruturas produzidas pela função.\n- Retorne apenas código Python do arquivo de teste.\n- Não inclua cercas Markdown.\n- Não inclua explicações fora do código.\n\nImportação esperada:\n\n```python\nfrom ise26.targets import deduplicate_events\n```\n\nMetadados da função:\n\n- ID da função: `F02`\n- Nome da função: `deduplicate_events`\n- Descrição resumida: `Remove duplicate events by keeping the most recent row per event identifier while preserving null identifiers.`\n\nDocstring da função:\n\n```text\nRemove duplicated events while keeping the most recent row per event.\n\nRows with null identifiers are preserved because they cannot be safely\ngrouped into a duplicate set. Invalid timestamps are treated as older than\nvalid timestamps. When timestamps tie within the same event identifier, the\nlast row in the original order is retained.\n\nArgs:\n    df: Source DataFrame with event records.\n    id_col: Column that identifies an event entity.\n    timestamp_col: Column containing the update timestamp.\n\nReturns:\n    A new DataFrame with duplicated identified events removed.\n```\n\nComportamento esperado:\n\n`Keep the most recent row for each non-null event identifier, treat invalid timestamps as older than valid ones, preserve null event identifiers, break timestamp ties by keeping the last row in original order, and avoid mutating the input DataFrame.`\n\nCódigo da função correta:\n\n```python\ndef deduplicate_events(\n    df: pd.DataFrame,\n    id_col: str = \"event_id\",\n    timestamp_col: str = \"updated_at\",\n) -> pd.DataFrame:\n    \"\"\"Remove duplicated events while keeping the most recent row per event.\n\n    Rows with null identifiers are preserved because they cannot be safely\n    grouped into a duplicate set. Invalid timestamps are treated as older than\n    valid timestamps. When timestamps tie within the same event identifier, the\n    last row in the original order is retained.\n\n    Args:\n        df: Source DataFrame with event records.\n        id_col: Column that identifies an event entity.\n        timestamp_col: Column containing the update timestamp.\n\n    Returns:\n        A new DataFrame with duplicated identified events removed.\n    \"\"\"\n\n    result = _clone_dataframe(df)\n    result[\"_original_order\"] = range(len(result))\n    result[\"_parsed_timestamp\"] = pd.to_datetime(result[timestamp_col], errors=\"coerce\")\n\n    identified_rows = result[result[id_col].notna()].copy()\n    unidentified_rows = result[result[id_col].isna()].copy()\n\n    deduplicated_identified = (\n        identified_rows.sort_values(\n            by=[id_col, \"_parsed_timestamp\", \"_original_order\"],\n            ascending=[True, True, True],\n            kind=\"stable\",\n            na_position=\"first\",\n        )\n        .drop_duplicates(subset=[id_col], keep=\"last\")\n        .copy()\n    )\n\n    final_result = pd.concat([deduplicated_identified, unidentified_rows], ignore_index=True)\n    final_result = final_result.sort_values(by=\"_original_order\", kind=\"stable\").drop(\n        columns=[\"_original_order\", \"_parsed_timestamp\"]\n    )\n\n    return final_result.reset_index(drop=True)\n```\n"
+    }
+  ],
+  "parameters": {
+    "temperature": 0.7,
+    "top_p": 1.0,
+    "max_tokens": 4096,
+    "stream": false,
+    "history_policy": "no_history_between_calls"
+  }
+}

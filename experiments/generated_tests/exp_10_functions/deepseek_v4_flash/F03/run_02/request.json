@@ -1,0 +1,22 @@
+{
+  "provider": "DeepSeek",
+  "base_url": "https://api.deepseek.com",
+  "model": "deepseek-v4-flash",
+  "messages": [
+    {
+      "role": "system",
+      "content": "You generate pytest suites for Python data-transformation functions. Return only valid Python code for the test file and do not include Markdown fences."
+    },
+    {
+      "role": "user",
+      "content": "# Template oficial de geração de testes do ISE26\n\nGere uma suíte de testes em `pytest` para a função Python descrita abaixo.\n\nRequisitos obrigatórios:\n\n- Importe a função somente a partir de `ise26.targets`.\n- Use `pytest`.\n- Não altere, não reimplemente e não envolva a função original.\n- Não use API externa, arquivos externos, rede, banco de dados ou recursos fora do próprio teste.\n- Crie os `DataFrame`s sintéticos necessários dentro do próprio arquivo de teste.\n- Cubra casos comuns e casos de borda.\n- Quando fizer sentido, considere valores nulos, duplicatas, datas, schema e regras de negócio.\n- Verifique comportamento por meio de valores retornados e estruturas produzidas pela função.\n- Retorne apenas código Python do arquivo de teste.\n- Não inclua cercas Markdown.\n- Não inclua explicações fora do código.\n\nImportação esperada:\n\n```python\nfrom ise26.targets import calculate_monthly_revenue\n```\n\nMetadados da função:\n\n- ID da função: `F03`\n- Nome da função: `calculate_monthly_revenue`\n- Descrição resumida: `Aggregate valid non-canceled order amounts by month in YYYY-MM format.`\n\nDocstring da função:\n\n```text\nAggregate monthly revenue from valid non-canceled orders.\n\nThe function ignores rows with invalid order dates, normalizes the status\nfield to detect canceled orders, treats invalid or missing amounts as zero,\nand returns the monthly totals in ``YYYY-MM`` format.\n\nArgs:\n    df: Source DataFrame with order information.\n    date_col: Column containing the order date.\n    amount_col: Column containing the monetary amount.\n    status_col: Column containing the order status.\n\nReturns:\n    A DataFrame with columns ``month`` and ``revenue`` sorted by month.\n```\n\nComportamento esperado:\n\n`Return a DataFrame with month and revenue columns, group by YYYY-MM, ignore canceled statuses in English or Portuguese regardless of case and surrounding spaces, treat invalid or missing amounts as zero, ignore invalid dates, and sort the result by month.`\n\nCódigo da função correta:\n\n```python\ndef calculate_monthly_revenue(\n    df: pd.DataFrame,\n    date_col: str = \"order_date\",\n    amount_col: str = \"amount\",\n    status_col: str = \"status\",\n) -> pd.DataFrame:\n    \"\"\"Aggregate monthly revenue from valid non-canceled orders.\n\n    The function ignores rows with invalid order dates, normalizes the status\n    field to detect canceled orders, treats invalid or missing amounts as zero,\n    and returns the monthly totals in ``YYYY-MM`` format.\n\n    Args:\n        df: Source DataFrame with order information.\n        date_col: Column containing the order date.\n        amount_col: Column containing the monetary amount.\n        status_col: Column containing the order status.\n\n    Returns:\n        A DataFrame with columns ``month`` and ``revenue`` sorted by month.\n    \"\"\"\n\n    result = _clone_dataframe(df)\n    parsed_dates = pd.to_datetime(result[date_col], errors=\"coerce\")\n    normalized_status = result[status_col].apply(_normalize_status_text)\n    normalized_amounts = pd.to_numeric(result[amount_col], errors=\"coerce\").fillna(0)\n    cancelled_statuses = {\"cancelled\", \"canceled\", \"cancelado\"}\n\n    valid_mask = parsed_dates.notna() & ~normalized_status.isin(cancelled_statuses)\n\n    filtered = pd.DataFrame(\n        {\n            \"month\": parsed_dates[valid_mask].dt.strftime(\"%Y-%m\"),\n            \"revenue\": normalized_amounts[valid_mask],\n        }\n    )\n\n    monthly_revenue = filtered.groupby(\"month\", as_index=False)[\"revenue\"].sum().sort_values(\n        \"month\",\n        kind=\"stable\",\n    )\n\n    return monthly_revenue.reset_index(drop=True)\n```\n"
+    }
+  ],
+  "parameters": {
+    "temperature": 0.7,
+    "top_p": 1.0,
+    "max_tokens": 4096,
+    "stream": false,
+    "history_policy": "no_history_between_calls"
+  }
+}

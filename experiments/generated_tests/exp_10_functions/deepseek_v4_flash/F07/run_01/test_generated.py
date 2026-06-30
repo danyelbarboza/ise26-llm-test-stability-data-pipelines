@@ -1,4 +1,208 @@
-"""Placeholder file created by the LLM generation infrastructure."""
+import pytest
+import pandas as pd
+import numpy as np
+from ise26.targets import parse_order_items_json
 
-# Generation status: placeholder
-# GENERATED_TEST_PLACEHOLDER
+
+def test_valid_items():
+    """Test basic expansion with valid items."""
+    df = pd.DataFrame({
+        "order_id": [1, 2],
+        "items_json": [
+            '[{"sku": "A", "quantity": 2, "unit_price": 10.5}, {"sku": "B", "quantity": 1, "unit_price": 5.0}]',
+            '[{"sku": "C", "quantity": 3, "unit_price": 7.2}]'
+        ]
+    })
+    result = parse_order_items_json(df)
+    expected = pd.DataFrame({
+        "order_id": [1, 1, 2],
+        "sku": ["A", "B", "C"],
+        "quantity": [2.0, 1.0, 3.0],
+        "unit_price": [10.5, 5.0, 7.2],
+        "item_total": [21.0, 5.0, 21.6]
+    })
+    pd.testing.assert_frame_equal(result, expected)
+
+
+def test_invalid_or_empty_json_skip():
+    """Test that invalid JSON, empty JSON, and non-list JSON are skipped."""
+    df = pd.DataFrame({
+        "order_id": [1, 2, 3, 4],
+        "items_json": [
+            "invalid json",
+            "",
+            "[]",
+            '[{"sku": "X", "quantity": 1, "unit_price": 1.0}]'
+        ]
+    })
+    result = parse_order_items_json(df)
+    expected = pd.DataFrame({
+        "order_id": [4],
+        "sku": ["X"],
+        "quantity": [1.0],
+        "unit_price": [1.0],
+        "item_total": [1.0]
+    })
+    pd.testing.assert_frame_equal(result, expected)
+
+
+def test_missing_or_null_quantity_unit_price():
+    """Test that missing or null quantity/unit_price become zero."""
+    df = pd.DataFrame({
+        "order_id": [1],
+        "items_json": [
+            '[{"sku": "A", "quantity": null, "unit_price": 5.0}, {"sku": "B", "quantity": 2, "unit_price": null}]'
+        ]
+    })
+    result = parse_order_items_json(df)
+    expected = pd.DataFrame({
+        "order_id": [1, 1],
+        "sku": ["A", "B"],
+        "quantity": [0.0, 2.0],
+        "unit_price": [5.0, 0.0],
+        "item_total": [0.0, 0.0]
+    })
+    pd.testing.assert_frame_equal(result, expected)
+
+
+def test_non_numeric_quantity_unit_price():
+    """Test that non-numeric quantity/unit_price become zero."""
+    df = pd.DataFrame({
+        "order_id": [1],
+        "items_json": [
+            '[{"sku": "A", "quantity": "abc", "unit_price": 10}, {"sku": "B", "quantity": 3, "unit_price": "xyz"}]'
+        ]
+    })
+    result = parse_order_items_json(df)
+    expected = pd.DataFrame({
+        "order_id": [1, 1],
+        "sku": ["A", "B"],
+        "quantity": [0.0, 3.0],
+        "unit_price": [10.0, 0.0],
+        "item_total": [0.0, 0.0]
+    })
+    pd.testing.assert_frame_equal(result, expected)
+
+
+def test_missing_sku():
+    """Test that missing sku becomes None."""
+    df = pd.DataFrame({
+        "order_id": [1],
+        "items_json": [
+            '[{"quantity": 1, "unit_price": 2.0}]'
+        ]
+    })
+    result = parse_order_items_json(df)
+    expected = pd.DataFrame({
+        "order_id": [1],
+        "sku": [None],
+        "quantity": [1.0],
+        "unit_price": [2.0],
+        "item_total": [2.0]
+    })
+    pd.testing.assert_frame_equal(result, expected)
+
+
+def test_duplicate_items():
+    """Test that duplicate items are preserved."""
+    df = pd.DataFrame({
+        "order_id": [1],
+        "items_json": [
+            '[{"sku": "A", "quantity": 2, "unit_price": 3}, {"sku": "A", "quantity": 2, "unit_price": 3}]'
+        ]
+    })
+    result = parse_order_items_json(df)
+    expected = pd.DataFrame({
+        "order_id": [1, 1],
+        "sku": ["A", "A"],
+        "quantity": [2.0, 2.0],
+        "unit_price": [3.0, 3.0],
+        "item_total": [6.0, 6.0]
+    })
+    pd.testing.assert_frame_equal(result, expected)
+
+
+def test_custom_column_names():
+    """Test that custom json_col and order_id_col are respected."""
+    df = pd.DataFrame({
+        "my_order": [10],
+        "my_json": ['[{"sku": "Z", "quantity": 5, "unit_price": 1.5}]']
+    })
+    result = parse_order_items_json(df, json_col="my_json", order_id_col="my_order")
+    expected = pd.DataFrame({
+        "my_order": [10],
+        "sku": ["Z"],
+        "quantity": [5.0],
+        "unit_price": [1.5],
+        "item_total": [7.5]
+    })
+    pd.testing.assert_frame_equal(result, expected)
+
+
+def test_empty_input_dataframe():
+    """Test that an empty input DataFrame returns an empty result DataFrame with the correct columns."""
+    df = pd.DataFrame(columns=["order_id", "items_json"])
+    result = parse_order_items_json(df)
+    expected = pd.DataFrame(columns=["order_id", "sku", "quantity", "unit_price", "item_total"])
+    pd.testing.assert_frame_equal(result, expected)
+
+
+def test_no_valid_items():
+    """Test that when all JSON payloads are invalid, an empty DataFrame is returned."""
+    df = pd.DataFrame({
+        "order_id": [1, 2],
+        "items_json": [None, "not json"]
+    })
+    result = parse_order_items_json(df)
+    expected = pd.DataFrame(columns=["order_id", "sku", "quantity", "unit_price", "item_total"])
+    pd.testing.assert_frame_equal(result, expected)
+
+
+def test_mixed_valid_invalid_items():
+    """Test combination of valid and invalid items in same order."""
+    df = pd.DataFrame({
+        "order_id": [1],
+        "items_json": [
+            '[{"sku": "A", "quantity": 1, "unit_price": 100}, "not an object"]'
+        ]
+    })
+    result = parse_order_items_json(df)
+    # The second element in the JSON list is not a dict, so it is skipped.
+    expected = pd.DataFrame({
+        "order_id": [1],
+        "sku": ["A"],
+        "quantity": [1.0],
+        "unit_price": [100.0],
+        "item_total": [100.0]
+    })
+    pd.testing.assert_frame_equal(result, expected)
+
+
+def test_preserve_order():
+    """Test that items are returned in the original order within each order."""
+    df = pd.DataFrame({
+        "order_id": [5, 1],
+        "items_json": [
+            '[{"sku": "B", "quantity": 1, "unit_price": 2}, {"sku": "A", "quantity": 3, "unit_price": 4}]',
+            '[{"sku": "C", "quantity": 1, "unit_price": 1}]'
+        ]
+    })
+    result = parse_order_items_json(df)
+    expected_order_ids = [5, 5, 1]
+    expected_skus = ["B", "A", "C"]
+    assert list(result["order_id"]) == expected_order_ids
+    assert list(result["sku"]) == expected_skus
+
+
+def test_output_column_types():
+    """Test that output columns have the correct dtype."""
+    df = pd.DataFrame({
+        "order_id": [1],
+        "items_json": ['[{"sku": "X", "quantity": 2, "unit_price": 3.0}]']
+    })
+    result = parse_order_items_json(df)
+    assert result["order_id"].dtype == np.object_  # or int64 depending on input
+    assert result["sku"].dtype == np.object_
+    assert result["quantity"].dtype == np.float64
+    assert result["unit_price"].dtype == np.float64
+    assert result["item_total"].dtype == np.float64

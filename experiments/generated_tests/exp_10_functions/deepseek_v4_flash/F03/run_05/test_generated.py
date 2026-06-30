@@ -1,4 +1,131 @@
-"""Placeholder file created by the LLM generation infrastructure."""
+import pandas as pd
+import pytest
+from pandas.testing import assert_frame_equal
+from ise26.targets import calculate_monthly_revenue
 
-# Generation status: placeholder
-# GENERATED_TEST_PLACEHOLDER
+
+def test_normal_orders():
+    df = pd.DataFrame({
+        'order_date': ['2024-01-15', '2024-01-20', '2024-02-10', '2024-02-25'],
+        'amount': [100.0, 200.0, 300.0, 400.0],
+        'status': ['completed', 'shipped', 'completed', 'delivered']
+    })
+    expected = pd.DataFrame({
+        'month': ['2024-01', '2024-02'],
+        'revenue': [300.0, 700.0]
+    })
+    result = calculate_monthly_revenue(df)
+    assert_frame_equal(result, expected)
+
+
+def test_cancelled_orders_ignored():
+    df = pd.DataFrame({
+        'order_date': ['2024-01-01', '2024-01-02', '2024-01-03', '2024-01-04'],
+        'amount': [100, 200, 300, 400],
+        'status': ['cancelled', 'canceled', 'Cancelado', 'CANCELLED ']
+    })
+    # All orders cancelled, so no revenue
+    expected = pd.DataFrame({
+        'month': pd.Series(dtype='str'),
+        'revenue': pd.Series(dtype='float64')
+    })
+    result = calculate_monthly_revenue(df)
+    assert_frame_equal(result, expected)
+
+
+def test_mixed_statuses():
+    df = pd.DataFrame({
+        'order_date': ['2024-01-01', '2024-01-02', '2024-01-03'],
+        'amount': [10, 20, 30],
+        'status': ['completed', 'canceled', 'shipped']
+    })
+    expected = pd.DataFrame({
+        'month': ['2024-01'],
+        'revenue': [40.0]
+    })
+    result = calculate_monthly_revenue(df)
+    assert_frame_equal(result, expected)
+
+
+def test_invalid_dates_ignored():
+    df = pd.DataFrame({
+        'order_date': ['2024-01-01', 'not_a_date', '2024-01-03', None],
+        'amount': [100, 200, 300, 400],
+        'status': ['completed', 'shipped', 'completed', 'delivered']
+    })
+    expected = pd.DataFrame({
+        'month': ['2024-01'],
+        'revenue': [400.0]
+    })
+    result = calculate_monthly_revenue(df)
+    assert_frame_equal(result, expected)
+
+
+def test_invalid_amounts_treated_as_zero():
+    df = pd.DataFrame({
+        'order_date': ['2024-01-01', '2024-01-02', '2024-01-03'],
+        'amount': [50, 'invalid', None],
+        'status': ['completed', 'completed', 'completed']
+    })
+    expected = pd.DataFrame({
+        'month': ['2024-01'],
+        'revenue': [50.0]
+    })
+    result = calculate_monthly_revenue(df)
+    assert_frame_equal(result, expected)
+
+
+def test_status_with_spaces_and_case():
+    df = pd.DataFrame({
+        'order_date': ['2024-01-01', '2024-01-02'],
+        'amount': [100, 200],
+        'status': [' Cancelado ', '  canceled  ']
+    })
+    expected = pd.DataFrame({
+        'month': pd.Series(dtype='str'),
+        'revenue': pd.Series(dtype='float64')
+    })
+    result = calculate_monthly_revenue(df)
+    assert_frame_equal(result, expected)
+
+
+def test_empty_dataframe():
+    df = pd.DataFrame({
+        'order_date': pd.Series(dtype='str'),
+        'amount': pd.Series(dtype='float64'),
+        'status': pd.Series(dtype='str')
+    })
+    expected = pd.DataFrame({
+        'month': pd.Series(dtype='str'),
+        'revenue': pd.Series(dtype='float64')
+    })
+    result = calculate_monthly_revenue(df)
+    assert_frame_equal(result, expected)
+
+
+def test_multiple_months_sorted():
+    df = pd.DataFrame({
+        'order_date': ['2024-03-01', '2024-01-15', '2024-02-10'],
+        'amount': [300, 100, 200],
+        'status': ['completed', 'completed', 'completed']
+    })
+    expected = pd.DataFrame({
+        'month': ['2024-01', '2024-02', '2024-03'],
+        'revenue': [100.0, 200.0, 300.0]
+    })
+    result = calculate_monthly_revenue(df)
+    assert_frame_equal(result, expected)
+
+
+def test_custom_column_names():
+    df = pd.DataFrame({
+        'date': ['2024-01-01', '2024-01-02'],
+        'amount': [100, 200],
+        'status': ['active', 'active']
+    })
+    expected = pd.DataFrame({
+        'month': ['2024-01'],
+        'revenue': [300.0]
+    })
+    result = calculate_monthly_revenue(df, date_col='date', amount_col='amount', status_col='status')
+    assert_frame_equal(result, expected)

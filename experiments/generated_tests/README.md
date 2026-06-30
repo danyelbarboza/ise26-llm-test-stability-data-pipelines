@@ -36,11 +36,12 @@ experiments/generated_tests/
 
 ## Sobre placeholders
 
-Quando ainda não houver execução real, a pasta pode conter placeholders preparados para a próxima rodada do modelo. Esses placeholders não são resultados experimentais.
+Antes da execução oficial, a pasta pode conter placeholders preparados para a próxima rodada do modelo. Esses placeholders não são resultados experimentais e não fazem parte dos resultados oficiais já registrados para `exp_10_functions`.
 
 ## Baseline histórica e expansão nova
 
 - a rodada histórica de 6 funções já está preservada;
+- a expansão `exp_10_functions` já possui resultados oficiais para Flash e Pro;
 - a expansão nova usa `exp_10_functions`, com 50 suítes planejadas por modelo e 200 execuções-alvo por modelo;
-- a expansão nova começa com estrutura vazia ou placeholders, conforme a etapa do fluxo;
-- resultados reais só podem entrar quando a geração oficial for executada.
+- placeholders só fazem sentido em etapas anteriores de preparação ou em novas rodadas ainda não executadas;
+- resultados reais entram apenas quando a geração oficial for executada.

@@ -1,4 +1,135 @@
-"""Placeholder file created by the LLM generation infrastructure."""
+```python
+import pandas as pd
+import pytest
+from ise26.targets import standardize_currency_values
 
-# Generation status: placeholder
-# GENERATED_TEST_PLACEHOLDER
+
+# ----------------------------------------------------------------------
+# Parsing válido: formatos brasileiros, ingleses, com símbolos, negativos
+# ----------------------------------------------------------------------
+@pytest.mark.parametrize(
+    "raw, expected",
+    [
+        ("1.234,56", 1234.56),
+        ("1,234.56", 1234.56),
+        ("12,34", 12.34),
+        ("12.34", 12.34),
+        ("R$ 1.234,56", 1234.56),
+        ("USD 1,234.56", 1234.56),
+        (" 1.234,56 ", 1234.56),
+        ("1234", 1234.0),
+        ("1.234.567,89", 1234567.89),
+        ("-1.234,56", -1234.56),
+        ("0,00", 0.0),
+        ("0.00", 0.0),
+        (",01", 0.01),
+        (".01", 0.01),
+        ("-0,01", -0.01),
+    ],
+)
+def test_valid_parsing(raw, expected):
+    """Valores reconhecidos como moeda devem ser convertidos para Float64."""
+    df = pd.DataFrame({"amount_raw": [raw]})
+    result = standardize_currency_values(df, "amount_raw", "amount")
+    assert result["amount"].iloc[0] == pytest.approx(expected, abs=1e-9)
+
+
+# ----------------------------------------------------------------------
+# Parsing inválido: valores que não podem ser interpretados como moeda
+# ----------------------------------------------------------------------
+@pytest.mark.parametrize(
+    "raw",
+    [
+        "abc",
+        "12.34.56",
+        "",
+        None,
+        pd.NA,
+        "R$ abc",
+        "1,234.56.78",
+        "1.234,56,78",
+    ],
+)
+def test_invalid_parsing(raw):
+    """Valores não reconhecíveis devem resultar em pd.NA."""
+    df = pd.DataFrame({"amount_raw": [raw]})
+    result = standardize_currency_values(df, "amount_raw", "amount")
+    assert pd.isna(result["amount"].iloc[0])
+
+
+# ----------------------------------------------------------------------
+# Tipo da coluna de saída
+# ----------------------------------------------------------------------
+def test_output_dtype():
+    """A coluna 'amount' deve ser do tipo nullable Float64."""
+    df = pd.DataFrame({"amount_raw": ["1.234,56", "abc"]})
+    result = standardize_currency_values(df, "amount_raw", "amount")
+    assert result["amount"].dtype.name == "Float64"
+
+
+# ----------------------------------------------------------------------
+# Sobrescrita de coluna existente
+# ----------------------------------------------------------------------
+def test_output_column_overwrites_existing():
+    """Se a coluna de saída já existir, ela deve ser sobrescrita."""
+    df = pd.DataFrame({"amount_raw": ["1.234,56"], "amount": [999]})
+    result = standardize_currency_values(df, "amount_raw", "amount")
+    assert result["amount"].iloc[0] == 1234.56
+
+
+# ----------------------------------------------------------------------
+# Preservação da coluna original no DataFrame retornado
+# ----------------------------------------------------------------------
+def test_original_column_preserved():
+    """A coluna bruta deve permanecer inalterada no resultado."""
+    df = pd.DataFrame({"amount_raw": ["1.234,56"]})
+    result = standardize_currency_values(df, "amount_raw", "amount")
+    assert "amount_raw" in result.columns
+    assert result["amount_raw"].iloc[0] == "1.234,56"
+
+
+# ----------------------------------------------------------------------
+# Imutabilidade do DataFrame de entrada
+# ----------------------------------------------------------------------
+def test_input_dataframe_not_modified():
+    """O DataFrame original não pode ser alterado pela função."""
+    original = pd.DataFrame({"amount_raw": ["1.234,56"]})
+    df = original.copy()
+    _ = standardize_currency_values(df, "amount_raw", "amount")
+    assert df.equals(original)
+
+
+# ----------------------------------------------------------------------
+# DataFrame vazio
+# ----------------------------------------------------------------------
+def test_empty_dataframe():
+    """DataFrame sem linhas deve retornar um clone com a nova coluna vazia."""
+    df = pd.DataFrame({"amount_raw": pd.Series(dtype=str)})
+    result = standardize_currency_values(df, "amount_raw", "amount")
+    assert result.empty
+    assert "amount" in result.columns
+    assert result["amount"].dtype.name == "Float64"
+
+
+# ----------------------------------------------------------------------
+# Múltiplos valores (ordem e mistura)
+# ----------------------------------------------------------------------
+def test_multiple_values():
+    """Deve converter corretamente uma série de valores mistos."""
+    df = pd.DataFrame({"amount_raw": ["1.234,56", "2.345,67", "abc"]})
+    result = standardize_currency_values(df, "amount_raw", "amount")
+    expected = pd.Series([1234.56, 2345.67, pd.NA], dtype="Float64")
+    pd.testing.assert_series_equal(result["amount"], expected)
+
+
+# ----------------------------------------------------------------------
+# Índice do DataFrame preservado
+# ----------------------------------------------------------------------
+def test_index_preserved():
+    """O índice do DataFrame original deve ser mantido no resultado."""
+    df = pd.DataFrame(
+        {"amount_raw": ["1.234,56", "abc"]},
+        index=[10, 20],
+    )
+    result = standardize_currency_values(df, "amount_raw", "amount")
+    assert list(result.index) == [10,

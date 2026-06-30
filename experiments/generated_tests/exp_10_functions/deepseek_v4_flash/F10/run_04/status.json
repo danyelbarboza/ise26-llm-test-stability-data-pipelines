@@ -1,4 +1,4 @@
 {
-  "status": "placeholder",
-  "message": "Placeholder suite prepared before official generation."
+  "status": "generated_syntax_invalid",
+  "message": "Generated code was saved, but Python syntax validation failed."
 }

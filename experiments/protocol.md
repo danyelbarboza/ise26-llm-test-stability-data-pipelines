@@ -9,15 +9,16 @@ Avaliar a estabilidade de testes automatizados gerados por LLM para funções de
 Este repositório mantém duas trilhas experimentais:
 
 - **`exp_6_functions`**: baseline histórica com 6 funções, já executada oficialmente para Flash e Pro;
-- **`exp_10_functions`**: expansão nova com 10 funções, preparada para uma nova rodada oficial.
+- **`exp_10_functions`**: expansão com 10 funções, já executada oficialmente para Flash e Pro.
 
-Para a expansão nova:
+Para a expansão `exp_10_functions`:
 
 - 10 funções corretas;
 - 30 versões defeituosas intencionais;
 - 5 execuções por função;
 - 50 suítes planejadas por modelo;
-- 200 execuções-alvo por modelo quando a geração oficial for concluída.
+- 200 execuções-alvo por modelo;
+- resultados oficiais já registrados para Flash e Pro.
 
 ## Modelos oficiais
 
@@ -147,5 +148,5 @@ Não compare Flash e Pro usando placeholders, nem compare resultados de `exp_6_f
 
 - os testes gerados por LLM podem variar entre execuções;
 - testes com sintaxe inválida não entram como execução real;
-- placeholders ajudam a preparar a estrutura, mas não contam como resultado oficial;
+- placeholders ajudam a preparar a estrutura em etapas anteriores, mas não contam como resultado oficial;
 - a expansão de 10 funções deve ser analisada separadamente da baseline histórica de 6 funções.

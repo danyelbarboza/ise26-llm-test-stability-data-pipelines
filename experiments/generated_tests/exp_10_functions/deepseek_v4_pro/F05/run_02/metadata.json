@@ -1,0 +1,69 @@
+{
+  "function_id": "F05",
+  "function_name": "validate_schema",
+  "run_id": "run_02",
+  "provider": "DeepSeek",
+  "model": "deepseek-v4-pro",
+  "experiment_id": "exp_10_functions",
+  "temperature": 0.7,
+  "top_p": 1.0,
+  "max_tokens": 4096,
+  "timestamp_utc": "2026-06-30T12:40:58Z",
+  "prompt_hash": "acca45a24633f7b643d6226463293c34e32f9f89bd9f090763b320928efccd51",
+  "function_code_hash": "d08c84e91c6141eb0cc77c6cbebbcc3c61629658d82c64291f1a65a6bec8095e",
+  "correct_module_hash": "fd460eb80610247b4c665048ebdab8afd25394f9a4e38b9344d2133ed387507e",
+  "config_hash": "9587e94bcadb3bf6328a747de1856ce3cb6d4d600f8e3372709e7f70d5635937",
+  "response_hash": "5f5587d2c0afb7216d92efc519a63af9ecb321875b176b0fe5fc4a279bf01d10",
+  "syntax_valid": true,
+  "overwrite_used": false,
+  "success": true,
+  "error": null,
+  "usage": {
+    "completion_tokens": 3231,
+    "prompt_tokens": 906,
+    "total_tokens": 4137,
+    "completion_tokens_details": {
+      "accepted_prediction_tokens": null,
+      "audio_tokens": null,
+      "reasoning_tokens": 1313,
+      "rejected_prediction_tokens": null
+    },
+    "prompt_tokens_details": {
+      "audio_tokens": null,
+      "cached_tokens": 896
+    },
+    "prompt_cache_hit_tokens": 896,
+    "prompt_cache_miss_tokens": 10
+  },
+  "generated_by": "LLM-generated pytest suite for the ISE26 experiment",
+  "request_messages": [
+    {
+      "role": "system",
+      "content": "You generate pytest suites for Python data-transformation functions. Return only valid Python code for the test file and do not include Markdown fences."
+    },
+    {
+      "role": "user",
+      "content": "# Template oficial de geração de testes do ISE26\n\nGere uma suíte de testes em `pytest` para a função Python descrita abaixo.\n\nRequisitos obrigatórios:\n\n- Importe a função somente a partir de `ise26.targets`.\n- Use `pytest`.\n- Não altere, não reimplemente e não envolva a função original.\n- Não use API externa, arquivos externos, rede, banco de dados ou recursos fora do próprio teste.\n- Crie os `DataFrame`s sintéticos necessários dentro do próprio arquivo de teste.\n- Cubra casos comuns e casos de borda.\n- Quando fizer sentido, considere valores nulos, duplicatas, datas, schema e regras de negócio.\n- Verifique comportamento por meio de valores retornados e estruturas produzidas pela função.\n- Retorne apenas código Python do arquivo de teste.\n- Não inclua cercas Markdown.\n- Não inclua explicações fora do código.\n\nImportação esperada:\n\n```python\nfrom ise26.targets import validate_schema\n```\n\nMetadados da função:\n\n- ID da função: `F05`\n- Nome da função: `validate_schema`\n- Descrição resumida: `Validate required columns and logical column types against a schema definition with normalized expected-type labels.`\n\nDocstring da função:\n\n```text\nValidate DataFrame columns against a logical schema definition.\n\nExtra columns are allowed. Missing columns and logical type mismatches are\nreported in a structured dictionary so that downstream tooling can inspect\nvalidation failures programmatically. Expected logical types are normalized\nwith ``strip().lower()`` and must belong to the supported set:\n``int``, ``float``, ``number``, ``string``, ``datetime``, or ``bool``.\n\nArgs:\n    df: DataFrame to validate.\n    schema: Mapping from column name to expected logical type.\n\nReturns:\n    A dictionary with ``valid``, ``missing_columns``, and ``type_errors``.\n\nRaises:\n    ValueError: If the schema contains an unsupported expected type.\n```\n\nComportamento esperado:\n\n`Accept schema labels int, float, number, string, datetime, and bool after strip and lowercase normalization, allow extra columns, report missing columns, report logical type mismatches with column, expected_type, and actual_type, and raise ValueError for unsupported expected types.`\n\nCódigo da função correta:\n\n```python\ndef validate_schema(df: pd.DataFrame, schema: dict[str, str]) -> dict[str, Any]:\n    \"\"\"Validate DataFrame columns against a logical schema definition.\n\n    Extra columns are allowed. Missing columns and logical type mismatches are\n    reported in a structured dictionary so that downstream tooling can inspect\n    validation failures programmatically. Expected logical types are normalized\n    with ``strip().lower()`` and must belong to the supported set:\n    ``int``, ``float``, ``number``, ``string``, ``datetime``, or ``bool``.\n\n    Args:\n        df: DataFrame to validate.\n        schema: Mapping from column name to expected logical type.\n\n    Returns:\n        A dictionary with ``valid``, ``missing_columns``, and ``type_errors``.\n\n    Raises:\n        ValueError: If the schema contains an unsupported expected type.\n    \"\"\"\n\n    missing_columns: list[str] = []\n    type_errors: list[dict[str, str]] = []\n\n    for column_name, expected_type in schema.items():\n        normalized_expected_type = _normalize_expected_type(expected_type)\n\n        if column_name not in df.columns:\n            missing_columns.append(column_name)\n            continue\n\n        actual_type = _infer_series_type(df[column_name])\n        if not _matches_expected_type(actual_type, normalized_expected_type):\n            type_errors.append(\n                {\n                    \"column\": column_name,\n                    \"expected_type\": normalized_expected_type,\n                    \"actual_type\": actual_type,\n                }\n            )\n\n    return {\n        \"valid\": not missing_columns and not type_errors,\n        \"missing_columns\": missing_columns,\n        \"type_errors\": type_errors,\n    }\n```\n"
+    }
+  ],
+  "parameters": {
+    "model": "deepseek-v4-pro",
+    "temperature": 0.7,
+    "top_p": 1.0,
+    "max_tokens": 4096,
+    "stream": false,
+    "base_url": "https://api.deepseek.com"
+  },
+  "python_version": "3.11.9",
+  "python_implementation": "CPython",
+  "dependency_versions": {
+    "openai": "2.44.0",
+    "python-dotenv": "1.2.2",
+    "pandas": "3.0.4",
+    "pytest": "8.4.2"
+  },
+  "git_commit": "3c5165b8402eabc1d7d66f081bc7606f6c11cdb9",
+  "command_executed": "C:\\Users\\User\\AppData\\Local\\Microsoft\\WindowsApps\\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\\python.exe scripts/generate_llm_tests.py --execute --experiment-id exp_10_functions --config experiments/config/deepseek_v4_pro_10_functions.json",
+  "extraction_mode": "raw_text",
+  "syntax_error": null
+}

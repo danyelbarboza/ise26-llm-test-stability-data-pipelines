@@ -1,0 +1,105 @@
+# Template oficial de geração de testes do ISE26
+
+Gere uma suíte de testes em `pytest` para a função Python descrita abaixo.
+
+Requisitos obrigatórios:
+
+- Importe a função somente a partir de `ise26.targets`.
+- Use `pytest`.
+- Não altere, não reimplemente e não envolva a função original.
+- Não use API externa, arquivos externos, rede, banco de dados ou recursos fora do próprio teste.
+- Crie os `DataFrame`s sintéticos necessários dentro do próprio arquivo de teste.
+- Cubra casos comuns e casos de borda.
+- Quando fizer sentido, considere valores nulos, duplicatas, datas, schema e regras de negócio.
+- Verifique comportamento por meio de valores retornados e estruturas produzidas pela função.
+- Retorne apenas código Python do arquivo de teste.
+- Não inclua cercas Markdown.
+- Não inclua explicações fora do código.
+
+Importação esperada:
+
+```python
+from ise26.targets import validate_schema
+```
+
+Metadados da função:
+
+- ID da função: `F05`
+- Nome da função: `validate_schema`
+- Descrição resumida: `Validate required columns and logical column types against a schema definition with normalized expected-type labels.`
+
+Docstring da função:
+
+```text
+Validate DataFrame columns against a logical schema definition.
+
+Extra columns are allowed. Missing columns and logical type mismatches are
+reported in a structured dictionary so that downstream tooling can inspect
+validation failures programmatically. Expected logical types are normalized
+with ``strip().lower()`` and must belong to the supported set:
+``int``, ``float``, ``number``, ``string``, ``datetime``, or ``bool``.
+
+Args:
+    df: DataFrame to validate.
+    schema: Mapping from column name to expected logical type.
+
+Returns:
+    A dictionary with ``valid``, ``missing_columns``, and ``type_errors``.
+
+Raises:
+    ValueError: If the schema contains an unsupported expected type.
+```
+
+Comportamento esperado:
+
+`Accept schema labels int, float, number, string, datetime, and bool after strip and lowercase normalization, allow extra columns, report missing columns, report logical type mismatches with column, expected_type, and actual_type, and raise ValueError for unsupported expected types.`
+
+Código da função correta:
+
+```python
+def validate_schema(df: pd.DataFrame, schema: dict[str, str]) -> dict[str, Any]:
+    """Validate DataFrame columns against a logical schema definition.
+
+    Extra columns are allowed. Missing columns and logical type mismatches are
+    reported in a structured dictionary so that downstream tooling can inspect
+    validation failures programmatically. Expected logical types are normalized
+    with ``strip().lower()`` and must belong to the supported set:
+    ``int``, ``float``, ``number``, ``string``, ``datetime``, or ``bool``.
+
+    Args:
+        df: DataFrame to validate.
+        schema: Mapping from column name to expected logical type.
+
+    Returns:
+        A dictionary with ``valid``, ``missing_columns``, and ``type_errors``.
+
+    Raises:
+        ValueError: If the schema contains an unsupported expected type.
+    """
+
+    missing_columns: list[str] = []
+    type_errors: list[dict[str, str]] = []
+
+    for column_name, expected_type in schema.items():
+        normalized_expected_type = _normalize_expected_type(expected_type)
+
+        if column_name not in df.columns:
+            missing_columns.append(column_name)
+            continue
+
+        actual_type = _infer_series_type(df[column_name])
+        if not _matches_expected_type(actual_type, normalized_expected_type):
+            type_errors.append(
+                {
+                    "column": column_name,
+                    "expected_type": normalized_expected_type,
+                    "actual_type": actual_type,
+                }
+            )
+
+    return {
+        "valid": not missing_columns and not type_errors,
+        "missing_columns": missing_columns,
+        "type_errors": type_errors,
+    }
+```

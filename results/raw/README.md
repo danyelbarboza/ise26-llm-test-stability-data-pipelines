@@ -11,6 +11,8 @@ Esta pasta raiz existe por compatibilidade e documentação. Os CSVs oficiais ag
   - `results/by_experiment/exp_10_functions/by_model/deepseek_v4_flash/raw/`
   - `results/by_experiment/exp_10_functions/by_model/deepseek_v4_pro/raw/`
 
+Essas pastas já guardam os CSVs oficiais reais da expansão `exp_10_functions`.
+
 ## O que o CSV bruto registra
 
 Cada linha representa uma execução-alvo de uma suíte gerada contra:
@@ -32,7 +34,7 @@ Cada linha representa uma execução-alvo de uma suíte gerada contra:
 
 ## Atenção
 
-- placeholders não são resultado experimental real;
+- placeholders não são resultado experimental real e pertencem apenas a etapas anteriores de preparação;
 - falhas de sintaxe são registradas separadamente;
 - nunca misture Flash e Pro no mesmo CSV bruto;
 - nunca misture a baseline histórica de 6 funções com a expansão de 10 funções no mesmo arquivo.

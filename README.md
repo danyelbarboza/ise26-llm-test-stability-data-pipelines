@@ -7,11 +7,11 @@ O repositório `ise26-llm-test-stability-data-pipelines` apoia um experimento ac
 O projeto tem duas trilhas experimentais:
 
 - **`exp_6_functions`**: baseline histórica com 6 funções, já executada oficialmente para `deepseek-v4-flash` e `deepseek-v4-pro`;
-- **`exp_10_functions`**: expansão nova com 10 funções, preparada para uma nova rodada oficial sem sobrescrever os resultados antigos.
+- **`exp_10_functions`**: expansão com 10 funções, já executada oficialmente para `deepseek-v4-flash` e `deepseek-v4-pro` sem sobrescrever os resultados antigos.
 
 Na expansão `exp_10_functions`, cada modelo terá 50 suítes planejadas e 200 execuções-alvo.
 
-Os artefatos oficiais do experimento histórico ficam em `results/by_model/`. Os artefatos da expansão nova ficam em `results/by_experiment/exp_10_functions/`.
+Os artefatos oficiais do experimento histórico ficam em `results/by_model/`. Os artefatos oficiais da expansão de 10 funções ficam em `results/by_experiment/exp_10_functions/`.
 
 ## Objetivo do projeto
 
@@ -134,12 +134,12 @@ Os testes gerados pela LLM devem:
 Há dois tipos de organização de saída:
 
 - `results/by_model/<modelo>/...`: baseline histórica de 6 funções;
-- `results/by_experiment/exp_10_functions/by_model/<modelo>/...`: expansão nova de 10 funções.
+- `results/by_experiment/exp_10_functions/by_model/<modelo>/...`: resultados oficiais da expansão de 10 funções.
 
 Os resultados comparativos ficam em:
 
 - `paper_assets/model_comparison/`: comparação histórica da baseline de 6 funções;
-- `paper_assets/exp_10_functions/model_comparison/`: comparação futura da expansão de 10 funções.
+- `paper_assets/exp_10_functions/model_comparison/`: comparação oficial da expansão de 10 funções entre Flash e Pro.
 
 ## Como instalar
 
@@ -248,4 +248,4 @@ Em especial:
 
 ## Próximos passos
 
-O próximo passo é concluir a rodada oficial da expansão `exp_10_functions` para Flash e Pro, sem misturar resultados com a baseline histórica de 6 funções.
+O próximo passo é analisar os resultados oficiais da expansão `exp_10_functions` com Flash e Pro, sem misturar com a baseline histórica de 6 funções.
