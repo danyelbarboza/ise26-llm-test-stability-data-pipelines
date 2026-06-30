@@ -1,5 +1,283 @@
-﻿"""Placeholder file for the official DeepSeek V4-Pro generation run."""
+from ise26.targets import validate_schema
 
-# Generation status: placeholder
-# GENERATED_TEST_PLACEHOLDER
+import pandas as pd
+import pytest
 
+
+# ----------------------------------------------------------------------
+# Helper to build simple DataFrames
+# ----------------------------------------------------------------------
+def _make_df(**columns) -> pd.DataFrame:
+    return pd.DataFrame(columns)
+
+
+# ----------------------------------------------------------------------
+# 1. All columns present and types match – valid=True
+# ----------------------------------------------------------------------
+def test_valid_schema_all_columns_match():
+    df = _make_df(
+        age=pd.array([25, 30, 35], dtype='int64'),
+        height=pd.array([1.75, 1.80, 1.65], dtype='float64'),
+        score=pd.array([10, 20, 30], dtype='int64'),
+        name=pd.array(['Alice', 'Bob', 'Charlie'], dtype='object'),
+        join_date=pd.to_datetime(['2020-01-01', '2021-06-15', '2022-12-31']),
+        active=pd.array([True, False, True], dtype='bool'),
+    )
+    schema = {
+        'age': 'int',
+        'height': 'float',
+        'score': 'number',          # number accepts int or float
+        'name': 'string',
+        'join_date': 'datetime',
+        'active': 'bool',
+    }
+    result = validate_schema(df, schema)
+    assert result == {
+        'valid': True,
+        'missing_columns': [],
+        'type_errors': [],
+    }
+
+
+# ----------------------------------------------------------------------
+# 2. Extra columns are allowed
+# ----------------------------------------------------------------------
+def test_extra_columns_ignored():
+    df = _make_df(
+        id=pd.array([1, 2, 3], dtype='int64'),
+        value=pd.array([1.5, 2.5, 3.5], dtype='float64'),
+        extra=pd.array(['x', 'y', 'z'], dtype='object'),
+    )
+    schema = {'id': 'int', 'value': 'float'}
+    result = validate_schema(df, schema)
+    assert result['valid'] is True
+    assert result['missing_columns'] == []
+    assert result['type_errors'] == []
+
+
+# ----------------------------------------------------------------------
+# 3. Missing columns
+# ----------------------------------------------------------------------
+def test_missing_columns_detected():
+    df = _make_df(col_a=pd.array([1, 2, 3], dtype='int64'))
+    schema = {'col_a': 'int', 'col_b': 'string'}
+    result = validate_schema(df, schema)
+    assert result['valid'] is False
+    assert result['missing_columns'] == ['col_b']
+    assert result['type_errors'] == []          # missing column not checked
+
+
+def test_all_columns_missing():
+    df = _make_df(col_a=pd.array([1, 2, 3], dtype='int64'))
+    schema = {'missing1': 'int', 'missing2': 'float'}
+    result = validate_schema(df, schema)
+    assert result['valid'] is False
+    assert set(result['missing_columns']) == {'missing1', 'missing2'}
+    assert result['type_errors'] == []
+
+
+# ----------------------------------------------------------------------
+# 4. Type mismatches – int vs. float etc.
+# ----------------------------------------------------------------------
+def test_type_mismatch_int_vs_float():
+    df = _make_df(a=pd.array([1.0, 2.0, 3.0], dtype='float64'))
+    schema = {'a': 'int'}          # expected int, actual float
+    result = validate_schema(df, schema)
+    assert result['valid'] is False
+    assert result['missing_columns'] == []
+    assert len(result['type_errors']) == 1
+    err = result['type_errors'][0]
+    assert err['column'] == 'a'
+    assert err['expected_type'] == 'int'
+    assert err['actual_type'] == 'float64'      # actual pandas dtype name
+
+
+def test_type_mismatch_float_vs_int():
+    df = _make_df(a=pd.array([1, 2, 3], dtype='int64'))
+    schema = {'a': 'float'}
+    result = validate_schema(df, schema)
+    assert result['valid'] is False
+    err = result['type_errors'][0]
+    assert err['expected_type'] == 'float'
+    assert err['actual_type'] == 'int64'
+
+
+def test_type_mismatch_string_vs_int():
+    df = _make_df(a=pd.array([1, 2, 3], dtype='int64'))
+    schema = {'a': 'string'}
+    result = validate_schema(df, schema)
+    assert not result['valid']
+    err = result['type_errors'][0]
+    assert err['expected_type'] == 'string'
+    assert err['actual_type'] == 'int64'
+
+
+def test_type_mismatch_datetime_vs_string():
+    df = _make_df(a=pd.array(['2021-01-01', '2021-01-02'], dtype='object'))
+    schema = {'a': 'datetime'}
+    result = validate_schema(df, schema)
+    assert not result['valid']
+    err = result['type_errors'][0]
+    assert err['expected_type'] == 'datetime'
+    assert err['actual_type'] == 'object'       # string column
+
+
+def test_type_mismatch_bool_vs_int():
+    df = _make_df(a=pd.array([0, 1, 0], dtype='int64'))
+    schema = {'a': 'bool'}
+    result = validate_schema(df, schema)
+    assert not result['valid']
+    err = result['type_errors'][0]
+    assert err['expected_type'] == 'bool'
+    assert err['actual_type'] == 'int64'
+
+
+# ----------------------------------------------------------------------
+# 5. "number" accepts both int and float
+# ----------------------------------------------------------------------
+def test_number_accepts_int():
+    df = _make_df(a=pd.array([1, 2, 3], dtype='int64'))
+    schema = {'a': 'number'}
+    result = validate_schema(df, schema)
+    assert result['valid'] is True
+
+
+def test_number_accepts_float():
+    df = _make_df(a=pd.array([1.5, 2.5, 3.5], dtype='float64'))
+    schema = {'a': 'number'}
+    result = validate_schema(df, schema)
+    assert result['valid'] is True
+
+
+def test_number_rejects_string():
+    df = _make_df(a=pd.array(['x', 'y', 'z'], dtype='object'))
+    schema = {'a': 'number'}
+    result = validate_schema(df, schema)
+    assert not result['valid']
+    err = result['type_errors'][0]
+    assert err['expected_type'] == 'number'
+    assert err['actual_type'] == 'object'
+
+
+# ----------------------------------------------------------------------
+# 6. Normalisation: strip and lowercasing of expected types
+# ----------------------------------------------------------------------
+def test_expected_type_normalization_strip_and_lower():
+    df = _make_df(
+        col=pd.array([1, 2, 3], dtype='int64'),
+        col2=pd.array([1.0, 2.0], dtype='float64'),
+    )
+    schema = {
+        'col': '  INT  ',
+        'col2': '  NumBER ',
+    }
+    result = validate_schema(df, schema)
+    assert result['valid'] is True
+
+    # Also test that the returned type_errors use normalized type
+    df2 = _make_df(col=pd.array(['a'], dtype='object'))
+    schema2 = {'col': '  INT  '}
+    result2 = validate_schema(df2, schema2)
+    assert not result2['valid']
+    assert result2['type_errors'][0]['expected_type'] == 'int'
+
+
+# ----------------------------------------------------------------------
+# 7. ValueError on unsupported expected type
+# ----------------------------------------------------------------------
+def test_unsupported_type_raises_valueerror():
+    df = _make_df(a=pd.array([1, 2, 3], dtype='int64'))
+    schema = {'a': 'object'}       # not in supported set
+    with pytest.raises(ValueError):
+        validate_schema(df, schema)
+
+    # Even with whitespace, after normalization it must be unsupported
+    schema2 = {'a': '  INTEGER '}
+    with pytest.raises(ValueError):
+        validate_schema(df, schema2)
+
+
+def test_unsupported_type_raises_before_any_validation():
+    df = _make_df(a=pd.array([1, 2, 3], dtype='int64'))
+    with pytest.raises(ValueError):
+        validate_schema(df, {'missing': 'text'})
+
+
+# ----------------------------------------------------------------------
+# 8. Empty DataFrame and / or empty schema
+# ----------------------------------------------------------------------
+def test_empty_schema_and_empty_df():
+    df = pd.DataFrame()
+    schema = {}
+    result = validate_schema(df, schema)
+    assert result == {
+        'valid': True,
+        'missing_columns': [],
+        'type_errors': [],
+    }
+
+
+def test_empty_df_with_nonempty_schema():
+    df = pd.DataFrame()
+    schema = {'col': 'int'}
+    result = validate_schema(df, schema)
+    assert result == {
+        'valid': False,
+        'missing_columns': ['col'],
+        'type_errors': [],
+    }
+
+
+def test_empty_schema_with_nonempty_df():
+    df = _make_df(a=pd.array([1, 2, 3], dtype='int64'))
+    schema = {}
+    result = validate_schema(df, schema)
+    assert result == {
+        'valid': True,
+        'missing_columns': [],
+        'type_errors': [],
+    }
+
+
+# ----------------------------------------------------------------------
+# 9. Null values do not change logical type expectation (only dtypes matter)
+# ----------------------------------------------------------------------
+def test_null_in_int_column_becomes_float_and_causes_mismatch():
+    # pandas int column with NaN becomes float64
+    s = pd.array([1, 2, None], dtype='Int64')   # nullable integer -> still 'Int64' dtype?
+    # Actually, pd.array with dtype='Int64' keeps pandas IntegerDtype.
+    # Try explicit casting
+    df = pd.DataFrame({'a': pd.array([1, 2, None], dtype='Int64')})
+    # dtype 'Int64' (nullable integer) should still be considered int.
+    # But we need to see if it matches. Let's test.
+    # If using standard integer with None, it becomes float64.
+    df2 = _make_df(a=pd.array([1.0, 2.0, None], dtype='float64'))  # NaN forces float
+    schema = {'a': 'int'}
+    result = validate_schema(df2, schema)
+    assert not result['valid']
+    assert result['type_errors'][0]['actual_type'] == 'float64'
+
+    # For nullable integer pandas dtype, it should match int
+    result_int = validate_schema(df, {'a': 'int'})
+    assert result_int['valid'] is True
+
+
+def test_null_in_datetime():
+    df = _make_df(
+        a=pd.to_datetime(['2021-01-01', '2021-01-02', pd.NaT])
+    )
+    result = validate_schema(df, {'a': 'datetime'})
+    assert result['valid'] is True
+
+
+# ----------------------------------------------------------------------
+# 10. Multiple errors reported together
+# ----------------------------------------------------------------------
+def test_multiple_errors():
+    df = _make_df(
+        a=pd.array([1.0, 2.0], dtype='float64'),
+        b=pd.array(['x', 'y'], dtype='object'),
+        c=pd.array([True, False], dtype='bool'),
+    )
+    schema = {
+        'a': 'int',           # type mismatch

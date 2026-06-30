@@ -141,8 +141,8 @@ python scripts/run_generated_tests.py --model deepseek_v4_flash
 python scripts/summarize_results.py --model deepseek_v4_flash
 ```
 
-Quando o Pro tiver execução oficial, use `--model deepseek_v4_pro` nas mesmas etapas.
-Depois que Flash e Pro estiverem prontos, rode `python scripts/compare_model_results.py` para gerar os arquivos comparativos.
+Para validar o Pro oficial, use `--model deepseek_v4_pro` nas mesmas etapas.
+Como Flash e Pro já têm execuções oficiais, rode `python scripts/compare_model_results.py` para gerar os arquivos comparativos.
 
 ## Como interpretar os arquivos gerados
 

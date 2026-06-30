@@ -84,7 +84,7 @@ python scripts/compare_model_results.py
 - `paper_assets/model_comparison/model_by_function_comparison.md`
 - `paper_assets/model_comparison/model_comparison_summary.md`
 
-Se o Pro ainda estiver sem resultados oficiais, o script termina de forma controlada e não inventa comparação.
+Se o modelo informado ainda estiver sem resultados oficiais, o script termina de forma controlada e não inventa comparação.
 
 ## Diagnóstico rápido
 

@@ -1,0 +1,34 @@
+# Model-by-function comparison
+
+| function_id | metric | deepseek_v4_flash | deepseek_v4_pro | difference_pro_minus_flash |
+| --- | --- | --- | --- | --- |
+| F01 | correct_pass_rate | 0.4 | 0.5 | 0.09999999999999998 |
+| F01 | false_positive_rate | 0.6 | 0.5 | -0.09999999999999998 |
+| F01 | reliable_defect_detection_rate | 0.4 | 0.5 | 0.09999999999999998 |
+| F01 | contaminated_bug_failure_rate | 0.6 | 0.5 | -0.09999999999999998 |
+| F01 | real_suite_count | 5.0 | 4.0 | -1.0 |
+| F02 | correct_pass_rate | 0.6 | 0.5 | -0.09999999999999998 |
+| F02 | false_positive_rate | 0.4 | 0.5 | 0.09999999999999998 |
+| F02 | reliable_defect_detection_rate | 0.6 | 0.5 | -0.09999999999999998 |
+| F02 | contaminated_bug_failure_rate | 0.4 | 0.5 | 0.09999999999999998 |
+| F02 | real_suite_count | 5.0 | 4.0 | -1.0 |
+| F03 | correct_pass_rate | 0.0 | 0.8 | 0.8 |
+| F03 | false_positive_rate | 1.0 | 0.2 | -0.8 |
+| F03 | reliable_defect_detection_rate | 0.0 | 0.6666666666666666 | 0.6666666666666666 |
+| F03 | contaminated_bug_failure_rate | 1.0 | 0.2 | -0.8 |
+| F03 | real_suite_count | 5.0 | 5.0 | 0.0 |
+| F04 | correct_pass_rate | 0.5 | 0.0 | -0.5 |
+| F04 | false_positive_rate | 0.5 | 1.0 | 0.5 |
+| F04 | reliable_defect_detection_rate | 0.5 | 0.0 | -0.5 |
+| F04 | contaminated_bug_failure_rate | 0.5 | 1.0 | 0.5 |
+| F04 | real_suite_count | 4.0 | 2.0 | -2.0 |
+| F05 | correct_pass_rate | 0.8 | 0.0 | -0.8 |
+| F05 | false_positive_rate | 0.2 | 1.0 | 0.8 |
+| F05 | reliable_defect_detection_rate | 0.8 | 0.0 | -0.8 |
+| F05 | contaminated_bug_failure_rate | 0.2 | 1.0 | 0.8 |
+| F05 | real_suite_count | 5.0 | 4.0 | -1.0 |
+| F06 | correct_pass_rate | 0.2 | 0.6666666666666666 | 0.4666666666666666 |
+| F06 | false_positive_rate | 0.8 | 0.3333333333333333 | -0.46666666666666673 |
+| F06 | reliable_defect_detection_rate | 0.2 | 0.5555555555555555 | 0.35555555555555546 |
+| F06 | contaminated_bug_failure_rate | 0.8 | 0.3333333333333333 | -0.46666666666666673 |
+| F06 | real_suite_count | 5.0 | 3.0 | -2.0 |

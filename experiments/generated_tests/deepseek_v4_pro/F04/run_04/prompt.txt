@@ -1,0 +1,147 @@
+# Template oficial de geração de testes do ISE26
+
+Gere uma suíte de testes em `pytest` para a função Python descrita abaixo.
+
+Requisitos obrigatórios:
+
+- Importe a função somente a partir de `ise26.targets`.
+- Use `pytest`.
+- Não altere, não reimplemente e não envolva a função original.
+- Não use API externa, arquivos externos, rede, banco de dados ou recursos fora do próprio teste.
+- Crie os `DataFrame`s sintéticos necessários dentro do próprio arquivo de teste.
+- Não importe `tests.fixtures` nem qualquer fixture interna do repositório.
+- Cubra casos comuns e casos de borda.
+- Quando fizer sentido, considere valores nulos, duplicatas, datas, schema e regras de negócio.
+- Verifique comportamento por meio de valores retornados e estruturas produzidas pela função.
+- Retorne apenas código Python do arquivo de teste.
+- Não inclua cercas Markdown.
+- Não inclua explicações fora do código.
+
+Importação esperada:
+
+```python
+from ise26.targets import join_customers_orders
+```
+
+Metadados da função:
+
+- ID da função: `F04`
+- Nome da função: `join_customers_orders`
+- Descrição resumida: `Perform a deterministic full outer join between customers and orders, handling null keys explicitly and annotating each row with a record status.`
+
+Docstring da função:
+
+```text
+Join customer and order datasets using a full outer join.
+
+The output preserves unmatched rows from both inputs and annotates the join
+outcome through the ``record_status`` column. Null join keys are handled
+explicitly so rows with missing identifiers are never classified as
+``matched``. The result is also sorted deterministically and returned with
+a reset index.
+
+Args:
+    customers: Customer DataFrame.
+    orders: Order DataFrame.
+    customer_key: Join key shared by both datasets.
+
+Returns:
+    A new DataFrame containing the full outer join plus a status label.
+```
+
+Comportamento esperado:
+
+`Perform a deterministic full outer join, preserve unmatched rows from both inputs, classify rows as matched, customer_without_order, or order_without_customer, never mark rows with null join keys as matched, reset the index, and keep the original DataFrames unchanged.`
+
+Código da função correta:
+
+```python
+def join_customers_orders(
+    customers: pd.DataFrame,
+    orders: pd.DataFrame,
+    customer_key: str = "customer_id",
+) -> pd.DataFrame:
+    """Join customer and order datasets using a full outer join.
+
+    The output preserves unmatched rows from both inputs and annotates the join
+    outcome through the ``record_status`` column. Null join keys are handled
+    explicitly so rows with missing identifiers are never classified as
+    ``matched``. The result is also sorted deterministically and returned with
+    a reset index.
+
+    Args:
+        customers: Customer DataFrame.
+        orders: Order DataFrame.
+        customer_key: Join key shared by both datasets.
+
+    Returns:
+        A new DataFrame containing the full outer join plus a status label.
+    """
+
+    customers_copy = _clone_dataframe(customers)
+    orders_copy = _clone_dataframe(orders)
+
+    customers_copy["_customer_source_order"] = range(len(customers_copy))
+    orders_copy["_order_source_order"] = range(len(orders_copy))
+
+    customers_with_key = customers_copy[customers_copy[customer_key].notna()].copy()
+    customers_without_key = customers_copy[customers_copy[customer_key].isna()].copy()
+    orders_with_key = orders_copy[orders_copy[customer_key].notna()].copy()
+    orders_without_key = orders_copy[orders_copy[customer_key].isna()].copy()
+
+    merged_with_keys = customers_with_key.merge(
+        orders_with_key,
+        on=customer_key,
+        how="outer",
+        indicator=True,
+        sort=False,
+    )
+
+    status_mapping = {
+        "both": "matched",
+        "left_only": "customer_without_order",
+        "right_only": "order_without_customer",
+    }
+    merged_with_keys["record_status"] = merged_with_keys["_merge"].map(status_mapping)
+    merged_with_keys["_sort_order"] = merged_with_keys["_customer_source_order"].combine_first(
+        merged_with_keys["_order_source_order"]
+    )
+
+    merged_columns = [column_name for column_name in merged_with_keys.columns if column_name != "_merge"]
+
+    customer_null_rows = customers_without_key.copy()
+    for column_name in merged_columns:
+        if column_name not in customer_null_rows.columns:
+            customer_null_rows[column_name] = pd.NA
+    customer_null_rows["record_status"] = "customer_without_order"
+    customer_null_rows["_sort_order"] = customer_null_rows["_customer_source_order"]
+    customer_null_rows = customer_null_rows[merged_columns]
+
+    order_null_rows = orders_without_key.copy()
+    for column_name in merged_columns:
+        if column_name not in order_null_rows.columns:
+            order_null_rows[column_name] = pd.NA
+    order_null_rows["record_status"] = "order_without_customer"
+    order_null_rows["_sort_order"] = order_null_rows["_order_source_order"]
+    order_null_rows = order_null_rows[merged_columns]
+
+    final_result = pd.concat(
+        [
+            merged_with_keys.drop(columns="_merge"),
+            customer_null_rows,
+            order_null_rows,
+        ],
+        ignore_index=True,
+        sort=False,
+    )
+
+    final_result = final_result.sort_values(
+        by=["_sort_order", "_customer_source_order", "_order_source_order", "record_status"],
+        kind="stable",
+        na_position="last",
+    )
+
+    return final_result.drop(
+        columns=["_sort_order", "_customer_source_order", "_order_source_order"]
+    ).reset_index(drop=True)
+```

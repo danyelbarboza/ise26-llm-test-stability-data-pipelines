@@ -26,13 +26,13 @@ results/
 ## Estado atual
 
 - a execução oficial do Flash já existe e fica em `results/by_model/deepseek_v4_flash/`;
-- o Pro ainda está apenas preparado estruturalmente;
+- o Pro já tem execução oficial e fica em `results/by_model/deepseek_v4_pro/`;
 - não misture CSVs de modelos diferentes no mesmo arquivo.
 
 ## Resultados oficiais e comparação
 
-Os resultados comparativos entre Flash e Pro devem ser preparados em `paper_assets/model_comparison/` apenas depois que as duas execuções oficiais existirem.
-O script `scripts/compare_model_results.py` só deve produzir saída quando os dois modelos tiverem resumos oficiais reais; se o Pro ainda estiver apenas com placeholders, ele termina sem gerar números.
+Os resultados comparativos entre Flash e Pro ficam em `paper_assets/model_comparison/` e só são válidos quando os dois modelos têm resumos oficiais reais.
+O script `scripts/compare_model_results.py` gera os arquivos comparativos a partir desses resumos oficiais.
 
 ## Atenção
 

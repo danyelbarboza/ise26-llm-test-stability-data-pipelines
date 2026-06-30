@@ -35,7 +35,8 @@ def test_flash_manifest_and_pro_manifest_are_separate() -> None:
     assert flash_manifest.exists()
     assert pro_manifest.exists()
     assert sum(1 for _ in flash_manifest.open(encoding="utf-8")) > 1
-    assert sum(1 for _ in pro_manifest.open(encoding="utf-8")) == 1
+    assert sum(1 for _ in pro_manifest.open(encoding="utf-8")) > 1
+    assert flash_manifest.parent != pro_manifest.parent
 
 
 def test_generate_script_uses_flash_directory(monkeypatch) -> None:
