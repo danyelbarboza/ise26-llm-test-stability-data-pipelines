@@ -1,0 +1,27 @@
+{
+  "provider": "DeepSeek",
+  "model": "deepseek-v4-flash",
+  "base_url": "https://api.deepseek.com",
+  "temperature": 0.7,
+  "top_p": 1.0,
+  "max_tokens": 4096,
+  "stream": false,
+  "runs_per_function": 5,
+  "function_count": 10,
+  "function_ids": [
+    "F01",
+    "F02",
+    "F03",
+    "F04",
+    "F05",
+    "F06",
+    "F07",
+    "F08",
+    "F09",
+    "F10"
+  ],
+  "experiment_id": "exp_final_10_functions",
+  "history_policy": "no_history_between_calls",
+  "manual_editing_policy": "raw_response_saved; code_extracted_mechanically; no_manual_fixing_of_generated_tests",
+  "purpose": "Final official experiment for the paper using the refined 10-function benchmark"
+}

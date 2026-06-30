@@ -40,8 +40,8 @@ def validate_schema(df: pd.DataFrame, schema: dict[str, str]) -> dict[str, Any]:
             type_errors.append(
                 {
                     "column": column_name,
-                    "expected_type": normalized_expected_type,
-                    "actual_type": actual_type,
+                    "expected": normalized_expected_type,
+                    "actual": actual_type,
                 }
             )
 
@@ -50,8 +50,8 @@ def validate_schema(df: pd.DataFrame, schema: dict[str, str]) -> dict[str, Any]:
         type_errors.append(
             {
                 "column": column_name,
-                "expected_type": "not_present",
-                "actual_type": "extra_column",
+                "expected": "not_present",
+                "actual": "extra_column",
             }
         )
 

@@ -1,17 +1,13 @@
 # Pasta `exp_10_functions`
 
-Esta pasta contém a árvore da expansão nova com 10 funções.
+Esta pasta contem a arvore da expansao intermediaria com 10 funcoes.
 
-## Estrutura
+## Status
 
-```text
-exp_10_functions/
-  deepseek_v4_flash/
-  deepseek_v4_pro/
-```
-
-Cada modelo tem 5 runs por função. Antes da geração oficial, os diretórios podem conter placeholders. Esses placeholders não são resultado experimental real.
+Este recorte foi usado para validacao interna e rastreabilidade historica, mas nao e o resultado principal do artigo.
 
 ## Regra
 
-Não misture esta pasta com a baseline histórica de 6 funções.
+- nao misture esta pasta com `exp_final_10_functions`;
+- nao use estes artefatos como comparacao principal do artigo;
+- trate esta rodada como `deprecated` para analise principal.

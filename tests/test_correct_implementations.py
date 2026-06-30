@@ -67,6 +67,25 @@ def test_clean_customer_names_supports_custom_column_names() -> None:
     assert "customer_name_clean" not in result.columns
 
 
+@pytest.mark.parametrize(
+    ("function", "args", "kwargs"),
+    [
+        (clean_customer_names, (pd.DataFrame({"other": ["x"]}),), {"name_col": "customer_name"}),
+        (join_customers_orders, (pd.DataFrame({"other": [1]}), pd.DataFrame({"customer_id": [1]})), {}),
+        (parse_order_items_json, (pd.DataFrame({"order_id": [1]}),), {}),
+    ],
+)
+def test_selected_functions_raise_clear_error_when_required_columns_are_missing(
+    function: object,
+    args: tuple[object, ...],
+    kwargs: dict[str, object],
+) -> None:
+    """Verify that missing required columns produce a deterministic error."""
+
+    with pytest.raises(ValueError, match="Missing required column"):
+        function(*args, **kwargs)  # type: ignore[misc]
+
+
 def test_deduplicate_events_keeps_most_recent_and_preserves_null_ids() -> None:
     """Verify recency rules, null identifier preservation, and immutability."""
 
@@ -109,8 +128,8 @@ def test_calculate_monthly_revenue_ignores_canceled_orders_and_invalid_dates() -
 
     expected = pd.DataFrame(
         {
-            "month": ["2024-01", "2024-02", "2024-03"],
-            "revenue": [100.0, 0.0, 30.0],
+            "month": pd.Series(["2024-01", "2024-02", "2024-03"], dtype="string"),
+            "revenue": pd.Series([100.0, 0.0, 30.0], dtype="float64"),
         }
     )
 
@@ -126,8 +145,31 @@ def test_calculate_monthly_revenue_sorts_months_and_normalizes_cancel_statuses()
 
     expected = pd.DataFrame(
         {
-            "month": ["2024-01", "2024-02", "2024-03"],
-            "revenue": [100.0, 0.0, 30.0],
+            "month": pd.Series(["2024-01", "2024-02", "2024-03"], dtype="string"),
+            "revenue": pd.Series([100.0, 0.0, 30.0], dtype="float64"),
+        }
+    )
+
+    pdt.assert_frame_equal(result.reset_index(drop=True), expected)
+
+
+def test_calculate_monthly_revenue_returns_empty_frame_for_invalid_or_canceled_rows() -> None:
+    """Verify the predictable empty-output contract for fully filtered datasets."""
+
+    source = pd.DataFrame(
+        {
+            "order_date": ["invalid", "2024-01-01"],
+            "amount": [10, 20],
+            "status": ["paid", "cancelado"],
+        }
+    )
+
+    result = calculate_monthly_revenue(source)
+
+    expected = pd.DataFrame(
+        {
+            "month": pd.Series(dtype="string"),
+            "revenue": pd.Series(dtype="float64"),
         }
     )
 
@@ -187,7 +229,7 @@ def test_validate_schema_accepts_extra_columns_and_reports_missing_or_wrong_type
     assert wrong_type_result["valid"] is False
     assert wrong_type_result["missing_columns"] == []
     assert wrong_type_result["type_errors"] == [
-        {"column": "customer_id", "expected_type": "int", "actual_type": "string"}
+        {"column": "customer_id", "expected": "int", "actual": "string"}
     ]
 
 
@@ -282,6 +324,34 @@ def test_parse_order_items_json_supports_custom_order_identifier_column() -> Non
     assert result.shape[0] == 4
 
 
+def test_parse_order_items_json_requires_json_lists_and_keeps_missing_sku_as_na() -> None:
+    """Verify that non-list JSON payloads are skipped and missing SKUs stay missing."""
+
+    source = pd.DataFrame(
+        {
+            "order_id": [201, 202],
+            "items_json": [
+                '{"sku": "SKU-IGNORED"}',
+                '[{"quantity": 2, "unit_price": "3.50"}]',
+            ],
+        }
+    )
+
+    result = parse_order_items_json(source)
+
+    expected = pd.DataFrame(
+        {
+            "order_id": [202],
+            "sku": [pd.NA],
+            "quantity": [2.0],
+            "unit_price": [3.5],
+            "item_total": [7.0],
+        }
+    )
+
+    pdt.assert_frame_equal(result.reset_index(drop=True), expected)
+
+
 def test_calculate_conversion_rate_aggregates_channels_and_handles_invalid_values() -> None:
     """Verify grouping, numeric coercion, and zero-safe rate calculation."""
 
@@ -319,6 +389,31 @@ def test_calculate_conversion_rate_returns_zero_for_zero_visit_groups() -> None:
     assert result.loc[result["channel"] == "display", "conversions"].iloc[0] == 12.0
 
 
+def test_calculate_conversion_rate_groups_missing_channels_as_unknown() -> None:
+    """Verify that null channel names are grouped under an explicit label."""
+
+    source = pd.DataFrame(
+        {
+            "channel": ["search", None],
+            "visits": [10, 5],
+            "conversions": [1, 2],
+        }
+    )
+
+    result = calculate_conversion_rate(source)
+
+    expected = pd.DataFrame(
+        {
+            "channel": ["search", "unknown"],
+            "visits": [10.0, 5.0],
+            "conversions": [1.0, 2.0],
+            "conversion_rate": [0.1, 0.4],
+        }
+    )
+
+    pdt.assert_frame_equal(result.reset_index(drop=True), expected)
+
+
 def test_cap_outliers_iqr_caps_large_values_and_preserves_input() -> None:
     """Verify IQR capping and original-column preservation."""
 
@@ -347,6 +442,18 @@ def test_cap_outliers_iqr_supports_custom_output_column_and_keeps_nulls_missing(
     assert "amount_trimmed" in result.columns
     assert pd.isna(result.loc[1, "amount_trimmed"])
     assert pd.isna(result.loc[2, "amount_trimmed"])
+
+
+def test_cap_outliers_iqr_leaves_single_numeric_value_unchanged_when_iqr_is_unavailable() -> None:
+    """Verify the fallback path when there are fewer than two numeric values."""
+
+    source = pd.DataFrame({"amount": [10, None, "invalid"]})
+
+    result = cap_outliers_iqr(source)
+
+    assert result.loc[0, "amount_capped"] == 10.0
+    assert pd.isna(result.loc[1, "amount_capped"])
+    assert pd.isna(result.loc[2, "amount_capped"])
 
 
 def test_standardize_currency_values_parses_common_formats_and_preserves_input() -> None:

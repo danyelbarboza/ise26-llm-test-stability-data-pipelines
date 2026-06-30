@@ -18,55 +18,55 @@
     "function_name": "calculate_monthly_revenue",
     "module": "ise26.implementations.correct",
     "description": "Aggregate valid non-canceled order amounts by month in YYYY-MM format.",
-    "expected_behavior": "Return a DataFrame with month and revenue columns, group by YYYY-MM, ignore canceled statuses in English or Portuguese regardless of case and surrounding spaces, treat invalid or missing amounts as zero, ignore invalid dates, and sort the result by month."
+    "expected_behavior": "Return a DataFrame with month and revenue columns, group by YYYY-MM, ignore canceled statuses in English or Portuguese regardless of case and surrounding spaces, treat invalid or missing amounts as zero, ignore invalid dates, keep month as a stable string column even when the result is empty, and sort the result by month."
   },
   {
     "id": "F04",
     "function_name": "join_customers_orders",
     "module": "ise26.implementations.correct",
     "description": "Perform a deterministic full outer join between customers and orders, handling null keys explicitly and annotating each row with a record status.",
-    "expected_behavior": "Perform a deterministic full outer join, preserve unmatched rows from both inputs, classify rows as matched, customer_without_order, or order_without_customer, never mark rows with null join keys as matched, reset the index, and keep the original DataFrames unchanged."
+    "expected_behavior": "Perform a deterministic full outer join, preserve unmatched rows from both inputs, classify rows as matched, customer_without_order, or order_without_customer, never mark rows with null join keys as matched, suffix overlapping non-key columns with customer and order labels, reset the index, and keep the original DataFrames unchanged."
   },
   {
     "id": "F05",
     "function_name": "validate_schema",
     "module": "ise26.implementations.correct",
     "description": "Validate required columns and logical column types against a schema definition with normalized expected-type labels.",
-    "expected_behavior": "Accept schema labels int, float, number, string, datetime, and bool after strip and lowercase normalization, allow extra columns, report missing columns, report logical type mismatches with column, expected_type, and actual_type, and raise ValueError for unsupported expected types."
+    "expected_behavior": "Accept schema labels int, float, number, string, datetime, and bool after strip and lowercase normalization, allow extra columns, report missing columns, report logical type mismatches with column, expected, and actual keys, treat empty or fully null columns as compatible, and raise ValueError for unsupported expected types."
   },
   {
     "id": "F06",
     "function_name": "classify_payment_status",
     "module": "ise26.implementations.correct",
     "description": "Classify payment rows as invalid, paid on time, paid late, overdue, or pending, treating invalid provided payment dates as invalid.",
-    "expected_behavior": "Mark rows as invalid when amount is missing, non-numeric, or less than or equal to zero, when due_date is invalid, or when a provided paid_date is invalid; otherwise classify as paid_on_time, paid_late, overdue, or pending based on due_date, paid_date, and a valid reference_date."
+    "expected_behavior": "Mark rows as invalid when amount is missing, non-numeric, or less than or equal to zero, when due_date is missing or invalid, or when a provided paid_date is invalid; otherwise classify as paid_on_time, paid_late, overdue, or pending based on due_date, paid_date, and a valid reference_date while preserving the original DataFrame shape and column order."
   },
   {
     "id": "F07",
     "function_name": "parse_order_items_json",
     "module": "ise26.implementations.correct",
     "description": "Expand JSON-encoded order items into one row per item while preserving order identifiers.",
-    "expected_behavior": "Parse each JSON list of order items, explode valid items into separate rows, keep the order identifier, compute item_total as quantity multiplied by unit_price, treat invalid or missing quantity and unit_price values as zero, and skip rows with invalid, empty, or missing JSON payloads."
+    "expected_behavior": "Parse each JSON list of order items, explode valid items into separate rows, keep the order identifier, compute item_total as quantity multiplied by unit_price, treat invalid or missing quantity and unit_price values as zero, return pd.NA for missing SKU values, skip rows with invalid, empty, missing, or non-list JSON payloads, and return the columns order_id, sku, quantity, unit_price, and item_total in input order."
   },
   {
     "id": "F08",
     "function_name": "calculate_conversion_rate",
     "module": "ise26.implementations.correct",
     "description": "Aggregate visits and conversions by channel and compute the conversion rate.",
-    "expected_behavior": "Group rows by channel, sum visits and conversions with invalid or missing values treated as zero, compute conversion_rate as conversions divided by visits, return zero when visits are zero or invalid, and sort the output by channel."
+    "expected_behavior": "Group rows by channel, normalize null or blank channels to unknown, sum visits and conversions with invalid or missing values treated as zero, compute conversion_rate as conversions divided by visits after aggregation, return zero when visits are zero or invalid, and sort the output by channel."
   },
   {
     "id": "F09",
     "function_name": "cap_outliers_iqr",
     "module": "ise26.implementations.correct",
     "description": "Cap numeric outliers using the interquartile range without mutating the original values.",
-    "expected_behavior": "Compute Q1 and Q3 from the valid numeric values, derive lower and upper IQR bounds, cap values outside those limits into a new output column, and keep invalid or missing values as missing."
+    "expected_behavior": "Compute Q1 and Q3 from the valid numeric values using linear interpolation, derive lower and upper IQR bounds, cap values outside those limits into a new output column, keep invalid or missing values as missing, and leave numeric values unchanged when fewer than two numeric values are available."
   },
   {
     "id": "F10",
     "function_name": "standardize_currency_values",
     "module": "ise26.implementations.correct",
     "description": "Normalize common textual currency representations into numeric values.",
-    "expected_behavior": "Convert currency strings such as Brazilian and English formats into numeric values, support comma and dot decimal conventions, preserve the original raw column, and return missing values when the input cannot be parsed as a monetary amount."
+    "expected_behavior": "Convert currency strings such as Brazilian and English formats into numeric values, remove the R$ prefix and whitespace before parsing, support comma and dot decimal conventions, preserve the original raw column, and return missing values when the input cannot be parsed as a monetary amount."
   }
 ]

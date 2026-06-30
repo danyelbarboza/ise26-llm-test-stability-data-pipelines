@@ -1,58 +1,58 @@
 # README da pasta `metadata`
 
-## O que esta pasta contém
+## O que esta pasta contem
 
-Esta pasta contém metadados estruturados do experimento.
+Esta pasta contem metadados estruturados do experimento.
 
-Os dois arquivos principais são:
+Os dois arquivos principais sao:
 
 - `functions.json`
 - `bugs.json`
 
-Na configuração atual do repositório, os arquivos da raiz cobrem 10 funções corretas e 30 bugs intencionais. As cópias em `exp_6_functions/` e `exp_10_functions/` preservam o recorte de cada experimento.
+Na configuracao atual do repositorio, os arquivos da raiz cobrem 10 funcoes corretas e 30 bugs intencionais. As copias em `exp_6_functions/`, `exp_10_functions/` e `exp_final_10_functions/` preservam o recorte de cada experimento.
 
 ## Papel de `functions.json`
 
-Esse arquivo descreve as funções corretas oficiais do estudo.
+Esse arquivo descreve as funcoes corretas oficiais do estudo.
 
 Ele ajuda a responder perguntas como:
 
-- quais funções fazem parte do experimento?
-- qual é o nome oficial de cada função?
-- em qual módulo está a implementação correta?
-- qual é a descrição resumida da função?
+- quais funcoes fazem parte do experimento?
+- qual e o nome oficial de cada funcao?
+- em qual modulo esta a implementacao correta?
+- qual e a descricao resumida da funcao?
 
 ## Papel de `bugs.json`
 
-Esse arquivo descreve as versões defeituosas oficiais do estudo.
+Esse arquivo descreve as versoes defeituosas oficiais do estudo.
 
 Ele ajuda a responder perguntas como:
 
 - quais bugs existem?
-- a qual função cada bug pertence?
-- em qual módulo está cada bug?
-- qual é a descrição resumida do defeito?
+- a qual funcao cada bug pertence?
+- em qual modulo esta cada bug?
+- qual e a descricao resumida do defeito?
 
 ## Como esses arquivos ajudam na rastreabilidade
 
-Os metadados são úteis para:
+Os metadados sao uteis para:
 
 - scripts experimentais;
-- documentação;
-- revisão do desenho experimental;
-- checagens de integridade do repositório.
+- documentacao;
+- revisao do desenho experimental;
+- checagens de integridade do repositorio.
 
-Eles reduzem a chance de alguém confundir nomes de funções, módulos ou bugs.
+Eles reduzem a chance de alguem confundir nomes de funcoes, modulos ou bugs.
 
-## O que atualizar quando uma função ou bug muda
+## O que atualizar quando uma funcao ou bug muda
 
-Se houver mudança oficial em função ou bug, revise:
+Se houver mudanca oficial em funcao ou bug, revise:
 
 - `functions.json`
 - `bugs.json`
 - testes internos
 - README principal
 - READMEs das pastas relevantes
-- protocolo experimental, se necessário
+- protocolo experimental, se necessario
 
-Se a mudança for apenas textual, ainda assim vale conferir se os nomes oficiais continuam coerentes.
+Se a mudanca for apenas textual, ainda assim vale conferir se os nomes oficiais continuam coerentes.

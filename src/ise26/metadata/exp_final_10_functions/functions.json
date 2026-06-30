@@ -1,0 +1,72 @@
+[
+  {
+    "id": "F01",
+    "function_name": "clean_customer_names",
+    "module": "ise26.implementations.correct",
+    "description": "Standardize customer names into a new normalized column without mutating the original DataFrame.",
+    "expected_behavior": "Receive a DataFrame, create a new normalized name column, remove extra spaces, lowercase values, remove accents, convert null or blank values to pandas.NA, and preserve the original DataFrame unchanged."
+  },
+  {
+    "id": "F02",
+    "function_name": "deduplicate_events",
+    "module": "ise26.implementations.correct",
+    "description": "Remove duplicate events by keeping the most recent row per event identifier while preserving null identifiers.",
+    "expected_behavior": "Keep the most recent row for each non-null event identifier, treat invalid timestamps as older than valid ones, preserve null event identifiers, break timestamp ties by keeping the last row in original order, and avoid mutating the input DataFrame."
+  },
+  {
+    "id": "F03",
+    "function_name": "calculate_monthly_revenue",
+    "module": "ise26.implementations.correct",
+    "description": "Aggregate valid non-canceled order amounts by month in YYYY-MM format.",
+    "expected_behavior": "Return a DataFrame with month and revenue columns, group by YYYY-MM, ignore canceled statuses in English or Portuguese regardless of case and surrounding spaces, treat invalid or missing amounts as zero, ignore invalid dates, and sort the result by month."
+  },
+  {
+    "id": "F04",
+    "function_name": "join_customers_orders",
+    "module": "ise26.implementations.correct",
+    "description": "Perform a deterministic full outer join between customers and orders, handling null keys explicitly and annotating each row with a record status.",
+    "expected_behavior": "Perform a deterministic full outer join, preserve unmatched rows from both inputs, classify rows as matched, customer_without_order, or order_without_customer, never mark rows with null join keys as matched, reset the index, and keep the original DataFrames unchanged."
+  },
+  {
+    "id": "F05",
+    "function_name": "validate_schema",
+    "module": "ise26.implementations.correct",
+    "description": "Validate required columns and logical column types against a schema definition with normalized expected-type labels.",
+    "expected_behavior": "Accept schema labels int, float, number, string, datetime, and bool after strip and lowercase normalization, allow extra columns, report missing columns, report logical type mismatches with column, expected, and actual, and raise ValueError for unsupported expected types."
+  },
+  {
+    "id": "F06",
+    "function_name": "classify_payment_status",
+    "module": "ise26.implementations.correct",
+    "description": "Classify payment rows as invalid, paid on time, paid late, overdue, or pending, treating invalid provided payment dates as invalid.",
+    "expected_behavior": "Mark rows as invalid when amount is missing, non-numeric, or less than or equal to zero, when due_date is invalid, or when a provided paid_date is invalid; otherwise classify as paid_on_time, paid_late, overdue, or pending based on due_date, paid_date, and a valid reference_date."
+  },
+  {
+    "id": "F07",
+    "function_name": "parse_order_items_json",
+    "module": "ise26.implementations.correct",
+    "description": "Expand JSON-encoded order items into one row per item while preserving order identifiers.",
+    "expected_behavior": "Parse each JSON list of order items, explode valid items into separate rows, keep the order identifier, compute item_total as quantity multiplied by unit_price, treat invalid or missing quantity and unit_price values as zero, and skip rows with invalid, empty, or missing JSON payloads."
+  },
+  {
+    "id": "F08",
+    "function_name": "calculate_conversion_rate",
+    "module": "ise26.implementations.correct",
+    "description": "Aggregate visits and conversions by channel and compute the conversion rate.",
+    "expected_behavior": "Group rows by channel, sum visits and conversions with invalid or missing values treated as zero, compute conversion_rate as conversions divided by visits, return zero when visits are zero or invalid, and sort the output by channel."
+  },
+  {
+    "id": "F09",
+    "function_name": "cap_outliers_iqr",
+    "module": "ise26.implementations.correct",
+    "description": "Cap numeric outliers using the interquartile range without mutating the original values.",
+    "expected_behavior": "Compute Q1 and Q3 from the valid numeric values, derive lower and upper IQR bounds using linear interpolation, cap values outside those limits into a new output column, and keep invalid or missing values as missing."
+  },
+  {
+    "id": "F10",
+    "function_name": "standardize_currency_values",
+    "module": "ise26.implementations.correct",
+    "description": "Normalize common textual currency representations into numeric values.",
+    "expected_behavior": "Convert currency strings such as Brazilian and English formats into numeric values, support comma and dot decimal conventions, preserve the original raw column, and return missing values when the input cannot be parsed as a monetary amount."
+  }
+]

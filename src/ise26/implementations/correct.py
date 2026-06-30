@@ -27,6 +27,29 @@ def _clone_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     return df.copy(deep=True)
 
 
+def _ensure_columns_present(df: pd.DataFrame, required_columns: list[str], function_name: str) -> None:
+    """Raise a clear error when one or more required columns are missing.
+
+    The experiment keeps the public behavior explicit by failing fast whenever a
+    transformation is asked to read a column that is not present in the input
+    DataFrame. The resulting message names the function and the missing fields
+    so tests and generated suites can diagnose the issue deterministically.
+
+    Args:
+        df: DataFrame that should contain the required columns.
+        required_columns: List of columns that must be present.
+        function_name: Name of the public function that is validating inputs.
+
+    Raises:
+        ValueError: If one or more required columns are missing.
+    """
+
+    missing_columns = [column_name for column_name in required_columns if column_name not in df.columns]
+    if missing_columns:
+        missing_text = ", ".join(missing_columns)
+        raise ValueError(f"Missing required column(s) for {function_name}: {missing_text}")
+
+
 def _remove_accents(value: str) -> str:
     """Remove accents and diacritics from a string value.
 
@@ -95,6 +118,30 @@ def _normalize_optional_text(value: Any) -> Any:
     return text
 
 
+def _normalize_group_label(value: Any) -> str:
+    """Normalize a grouping label and collapse missing values into ``unknown``.
+
+    The conversion-rate transformation uses this helper so that null or blank
+    grouping keys are handled deterministically instead of producing separate
+    missing-value buckets.
+
+    Args:
+        value: Original grouping value from a DataFrame column.
+
+    Returns:
+        A stable text label suitable for grouping.
+    """
+
+    if pd.isna(value):
+        return "unknown"
+
+    text = str(value).strip()
+    if text == "":
+        return "unknown"
+
+    return text
+
+
 def _coerce_numeric_or_zero(value: Any) -> float:
     """Convert a scalar into a float and default invalid values to zero."""
 
@@ -108,9 +155,9 @@ def _coerce_numeric_or_zero(value: Any) -> float:
 def _coerce_currency_text(value: Any) -> Any:
     """Convert a text currency representation into a floating-point value.
 
-    The parser accepts both Brazilian and English numeric conventions and
-    returns ``pd.NA`` when the input cannot be interpreted as a monetary
-    amount.
+    The parser accepts Brazilian and international separator conventions,
+    removes the ``R$`` prefix when present, removes whitespace, and returns
+    ``pd.NA`` when the input cannot be interpreted as a monetary amount.
 
     Args:
         value: Original scalar currency-like value.
@@ -126,27 +173,38 @@ def _coerce_currency_text(value: Any) -> Any:
     if text == "":
         return pd.NA
 
-    cleaned_text = re.sub(r"[^0-9,.\-]", "", text)
-    if cleaned_text in {"", "-", ".", ",", "-.", "-,"}:
+    text = text.replace("R$", "").replace("r$", "")
+    text = re.sub(r"\s+", "", text)
+    if text == "":
         return pd.NA
 
     sign = ""
-    if cleaned_text.startswith("-"):
+    if text.startswith("-"):
         sign = "-"
-        cleaned_text = cleaned_text[1:]
+        text = text[1:]
 
-    last_comma = cleaned_text.rfind(",")
-    last_dot = cleaned_text.rfind(".")
+    if text == "":
+        return pd.NA
+
+    if not re.fullmatch(r"[0-9,.\-]+", sign + text):
+        return pd.NA
+
+    last_comma = text.rfind(",")
+    last_dot = text.rfind(".")
 
     if last_comma != -1 and last_dot != -1:
         decimal_separator = "," if last_comma > last_dot else "."
         thousand_separator = "." if decimal_separator == "," else ","
-        integer_part, decimal_part = cleaned_text.rsplit(decimal_separator, 1)
-        normalized_text = sign + integer_part.replace(thousand_separator, "") + "." + decimal_part
+        integer_part, decimal_part = text.rsplit(decimal_separator, 1)
+        integer_part = integer_part.replace(thousand_separator, "")
+        normalized_text = f"{sign}{integer_part}.{decimal_part}"
     elif last_comma != -1:
-        normalized_text = sign + cleaned_text.replace(".", "").replace(",", ".")
+        normalized_text = f"{sign}{text.replace('.', '').replace(',', '.')}"
     else:
-        normalized_text = sign + cleaned_text.replace(",", "")
+        normalized_text = f"{sign}{text.replace(',', '')}"
+
+    if not re.fullmatch(r"-?\d+(\.\d+)?", normalized_text):
+        return pd.NA
 
     try:
         return float(normalized_text)
@@ -157,8 +215,9 @@ def _coerce_currency_text(value: Any) -> Any:
 def _parse_order_items_payload(value: Any) -> list[dict[str, Any]]:
     """Parse a JSON payload into a list of item dictionaries.
 
-    Invalid, empty, or non-list payloads are treated as missing items so the
-    calling transformation can skip them safely.
+    Invalid, empty, missing, or non-list payloads are treated as missing items
+    so the calling transformation can skip them safely. Only JSON lists are
+    accepted because the experiment expects one row per item in a list payload.
 
     Args:
         value: Raw JSON-like value stored in the source DataFrame.
@@ -178,9 +237,6 @@ def _parse_order_items_payload(value: Any) -> list[dict[str, Any]]:
         parsed_value = json.loads(text)
     except (TypeError, ValueError, json.JSONDecodeError):
         return []
-
-    if isinstance(parsed_value, dict):
-        parsed_value = [parsed_value]
 
     if not isinstance(parsed_value, list):
         return []
@@ -343,6 +399,7 @@ def clean_customer_names(
     """
 
     result = _clone_dataframe(df)
+    _ensure_columns_present(result, [name_col], "clean_customer_names")
     result[output_col] = result[name_col].apply(_normalize_optional_string)
     return result
 
@@ -369,8 +426,9 @@ def deduplicate_events(
     """
 
     result = _clone_dataframe(df)
+    _ensure_columns_present(result, [id_col, timestamp_col], "deduplicate_events")
     result["_original_order"] = range(len(result))
-    result["_parsed_timestamp"] = pd.to_datetime(result[timestamp_col], errors="coerce")
+    result["_parsed_timestamp"] = pd.to_datetime(result[timestamp_col], errors="coerce", format="mixed")
 
     identified_rows = result[result[id_col].notna()].copy()
     unidentified_rows = result[result[id_col].isna()].copy()
@@ -404,7 +462,8 @@ def calculate_monthly_revenue(
 
     The function ignores rows with invalid order dates, normalizes the status
     field to detect canceled orders, treats invalid or missing amounts as zero,
-    and returns the monthly totals in ``YYYY-MM`` format.
+    and returns the monthly totals in ``YYYY-MM`` format using a stable string
+    column even when the result is empty.
 
     Args:
         df: Source DataFrame with order information.
@@ -417,16 +476,25 @@ def calculate_monthly_revenue(
     """
 
     result = _clone_dataframe(df)
-    parsed_dates = pd.to_datetime(result[date_col], errors="coerce")
+    _ensure_columns_present(result, [date_col, amount_col, status_col], "calculate_monthly_revenue")
+    parsed_dates = pd.to_datetime(result[date_col], errors="coerce", format="mixed")
     normalized_status = result[status_col].apply(_normalize_status_text)
     normalized_amounts = pd.to_numeric(result[amount_col], errors="coerce").fillna(0)
     cancelled_statuses = {"cancelled", "canceled", "cancelado"}
 
     valid_mask = parsed_dates.notna() & ~normalized_status.isin(cancelled_statuses)
 
+    if not valid_mask.any():
+        return pd.DataFrame(
+            {
+                "month": pd.Series(dtype="string"),
+                "revenue": pd.Series(dtype="float64"),
+            }
+        )
+
     filtered = pd.DataFrame(
         {
-            "month": parsed_dates[valid_mask].dt.strftime("%Y-%m"),
+            "month": parsed_dates[valid_mask].dt.strftime("%Y-%m").astype("string"),
             "revenue": normalized_amounts[valid_mask],
         }
     )
@@ -435,6 +503,9 @@ def calculate_monthly_revenue(
         "month",
         kind="stable",
     )
+
+    monthly_revenue["month"] = monthly_revenue["month"].astype("string")
+    monthly_revenue["revenue"] = monthly_revenue["revenue"].astype(float)
 
     return monthly_revenue.reset_index(drop=True)
 
@@ -449,8 +520,9 @@ def join_customers_orders(
     The output preserves unmatched rows from both inputs and annotates the join
     outcome through the ``record_status`` column. Null join keys are handled
     explicitly so rows with missing identifiers are never classified as
-    ``matched``. The result is also sorted deterministically and returned with
-    a reset index.
+    ``matched``. Overlapping non-key columns receive ``_customer`` and
+    ``_order`` suffixes, and the result is sorted deterministically before the
+    index is reset.
 
     Args:
         customers: Customer DataFrame.
@@ -463,6 +535,8 @@ def join_customers_orders(
 
     customers_copy = _clone_dataframe(customers)
     orders_copy = _clone_dataframe(orders)
+    _ensure_columns_present(customers_copy, [customer_key], "join_customers_orders")
+    _ensure_columns_present(orders_copy, [customer_key], "join_customers_orders")
 
     customers_copy["_customer_source_order"] = range(len(customers_copy))
     orders_copy["_order_source_order"] = range(len(orders_copy))
@@ -478,6 +552,7 @@ def join_customers_orders(
         how="outer",
         indicator=True,
         sort=False,
+        suffixes=("_customer", "_order"),
     )
 
     status_mapping = {
@@ -544,6 +619,8 @@ def validate_schema(df: pd.DataFrame, schema: dict[str, str]) -> dict[str, Any]:
 
     Returns:
         A dictionary with ``valid``, ``missing_columns``, and ``type_errors``.
+        Each ``type_errors`` entry contains ``column``, ``expected``, and
+        ``actual`` keys.
 
     Raises:
         ValueError: If the schema contains an unsupported expected type.
@@ -564,8 +641,8 @@ def validate_schema(df: pd.DataFrame, schema: dict[str, str]) -> dict[str, Any]:
             type_errors.append(
                 {
                     "column": column_name,
-                    "expected_type": normalized_expected_type,
-                    "actual_type": actual_type,
+                    "expected": normalized_expected_type,
+                    "actual": actual_type,
                 }
             )
 
@@ -590,7 +667,8 @@ def classify_payment_status(
     ``invalid``. A provided but invalid paid date is also classified as
     ``invalid`` instead of being treated as a missing payment. Valid paid dates
     are compared against the due date, while genuinely unpaid rows are
-    classified relative to the provided reference date.
+    classified relative to the provided reference date. The output preserves
+    the original row order and appends a new status column.
 
     Args:
         df: Source DataFrame with payment information.
@@ -604,13 +682,14 @@ def classify_payment_status(
         A new DataFrame with the payment status column added.
     """
 
-    parsed_reference_date = pd.to_datetime(reference_date, errors="coerce")
+    parsed_reference_date = pd.to_datetime(reference_date, errors="coerce", format="mixed")
     if pd.isna(parsed_reference_date):
         raise ValueError("reference_date must be a valid date-like value")
 
     result = _clone_dataframe(df)
-    due_dates = pd.to_datetime(result[due_date_col], errors="coerce")
-    paid_dates = pd.to_datetime(result[paid_date_col], errors="coerce")
+    _ensure_columns_present(result, [due_date_col, paid_date_col, amount_col], "classify_payment_status")
+    due_dates = pd.to_datetime(result[due_date_col], errors="coerce", format="mixed")
+    paid_dates = pd.to_datetime(result[paid_date_col], errors="coerce", format="mixed")
     amounts = pd.to_numeric(result[amount_col], errors="coerce")
     paid_date_text = result[paid_date_col].astype("string").str.strip()
     paid_date_provided = result[paid_date_col].notna() & paid_date_text.ne("").fillna(False)
@@ -645,8 +724,9 @@ def parse_order_items_json(
 ) -> pd.DataFrame:
     """Explode JSON-encoded order items into one row per item.
 
-    The function skips invalid, empty, or missing JSON payloads. Each valid item
-    keeps the originating order identifier, and quantity or unit price values
+    The function accepts JSON lists only and skips invalid, empty, missing, or
+    non-list payloads. Each valid item keeps the originating order identifier,
+    missing ``sku`` values become ``pd.NA``, and quantity or unit price values
     that cannot be parsed are converted to zero before computing ``item_total``.
 
     Args:
@@ -662,6 +742,7 @@ def parse_order_items_json(
     """
 
     result = _clone_dataframe(df)
+    _ensure_columns_present(result, [json_col, order_id_col], "parse_order_items_json")
     output_records: list[dict[str, Any]] = []
 
     for source_order, (_, row) in enumerate(result.iterrows()):
@@ -684,7 +765,15 @@ def parse_order_items_json(
 
     output_columns = [order_id_col, "sku", "quantity", "unit_price", "item_total"]
     if not output_records:
-        return pd.DataFrame(columns=output_columns)
+        return pd.DataFrame(
+            {
+                order_id_col: pd.Series(dtype=result[order_id_col].dtype),
+                "sku": pd.Series(dtype="object"),
+                "quantity": pd.Series(dtype="float64"),
+                "unit_price": pd.Series(dtype="float64"),
+                "item_total": pd.Series(dtype="float64"),
+            }
+        )
 
     exploded_items = pd.DataFrame.from_records(output_records)
     exploded_items = exploded_items.sort_values(
@@ -704,7 +793,8 @@ def calculate_conversion_rate(
     """Aggregate conversion metrics and compute the conversion rate.
 
     Missing or invalid numeric values are treated as zero before aggregation.
-    Channels are sorted alphabetically in the returned DataFrame.
+    Missing or blank channels are normalized to ``unknown`` before grouping,
+    and the grouped channels are sorted alphabetically in the returned DataFrame.
 
     Args:
         df: Source DataFrame with channel-level activity metrics.
@@ -718,9 +808,10 @@ def calculate_conversion_rate(
     """
 
     result = _clone_dataframe(df)
+    _ensure_columns_present(result, [group_col, visits_col, conversions_col], "calculate_conversion_rate")
     aggregated = pd.DataFrame(
         {
-            group_col: result[group_col],
+            group_col: result[group_col].apply(_normalize_group_label),
             "_visits": pd.to_numeric(result[visits_col], errors="coerce").fillna(0),
             "_conversions": pd.to_numeric(result[conversions_col], errors="coerce").fillna(0),
         }
@@ -751,7 +842,9 @@ def cap_outliers_iqr(
     """Cap numeric outliers using the IQR rule without mutating the input.
 
     Missing or invalid values stay missing in the capped output column. The
-    original numeric column is preserved unchanged.
+    original numeric column is preserved unchanged. Quantiles are computed with
+    linear interpolation, and when fewer than two numeric values are available
+    the function returns the original numeric values unchanged.
 
     Args:
         df: Source DataFrame with the numeric values to cap.
@@ -763,15 +856,16 @@ def cap_outliers_iqr(
     """
 
     result = _clone_dataframe(df)
+    _ensure_columns_present(result, [value_col], "cap_outliers_iqr")
     numeric_values = pd.to_numeric(result[value_col], errors="coerce")
     valid_values = numeric_values.dropna()
 
-    if valid_values.empty:
-        result[output_col] = pd.Series([pd.NA] * len(result), index=result.index, dtype="Float64")
+    if len(valid_values) < 2:
+        result[output_col] = pd.Series(numeric_values, index=result.index, dtype="Float64")
         return result
 
-    q1 = float(valid_values.quantile(0.25))
-    q3 = float(valid_values.quantile(0.75))
+    q1 = float(valid_values.quantile(0.25, interpolation="linear"))
+    q3 = float(valid_values.quantile(0.75, interpolation="linear"))
     iqr = q3 - q1
     lower_bound = q1 - 1.5 * iqr
     upper_bound = q3 + 1.5 * iqr
@@ -793,8 +887,9 @@ def standardize_currency_values(
 ) -> pd.DataFrame:
     """Normalize common textual currency formats into numeric values.
 
-    The parser accepts both Brazilian and English separators and leaves invalid
-    values as ``pd.NA``. The original raw column remains untouched.
+    The parser accepts both Brazilian and English separators, removes the
+    ``R$`` prefix and whitespace before parsing, and leaves invalid values as
+    ``pd.NA``. The original raw column remains untouched.
 
     Args:
         df: Source DataFrame with text currency values.
@@ -806,6 +901,7 @@ def standardize_currency_values(
     """
 
     result = _clone_dataframe(df)
+    _ensure_columns_present(result, [value_col], "standardize_currency_values")
     normalized_values = [_coerce_currency_text(value) for value in result[value_col]]
     result[output_col] = pd.Series(normalized_values, index=result.index, dtype="Float64")
     return result

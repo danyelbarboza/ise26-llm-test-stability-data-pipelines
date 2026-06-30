@@ -1,6 +1,6 @@
 # Pasta `results`
 
-Esta pasta guarda os resultados oficiais e os resultados preparados para os experimentos do repositório.
+Esta pasta guarda os resultados oficiais e os artefatos de apoio dos experimentos do repositorio.
 
 ## Estrutura principal
 
@@ -11,39 +11,37 @@ results/
     deepseek_v4_pro/
   by_experiment/
     exp_10_functions/
-      by_model/
-        deepseek_v4_flash/
-        deepseek_v4_pro/
+    exp_final_10_functions/
 ```
 
 ## Como interpretar a estrutura
 
-- `results/by_model/` mantém a baseline histórica de 6 funções;
-- `results/by_experiment/exp_10_functions/` isola a expansão oficial de 10 funções, com 50 suítes planejadas por modelo e 200 execuções-alvo por modelo;
+- `results/by_model/` preserva a baseline historica de 6 funcoes;
+- `results/by_experiment/exp_10_functions/` preserva a expansao intermediaria, hoje tratada como `deprecated`;
+- `results/by_experiment/exp_final_10_functions/` guarda os resultados oficiais do artigo;
 - Flash e Pro nunca devem compartilhar o mesmo CSV bruto;
 - resultados de experimentos diferentes nunca devem ser misturados.
 
 ## O que cada pasta guarda
 
-- `raw/`: CSV detalhado com cada execução-alvo;
-- `summary/`: CSVs agregados por função, por run e no geral;
-- `reports/`: relatórios em Markdown para leitura humana.
+- `raw/`: CSV detalhado com cada execucao-alvo;
+- `summary/`: CSVs agregados por funcao, por run e no geral;
+- `reports/`: relatorios em Markdown para leitura humana.
 
 ## Estado atual
 
-- a execução oficial histórica de Flash existe em `results/by_model/deepseek_v4_flash/`;
-- a execução oficial histórica de Pro existe em `results/by_model/deepseek_v4_pro/`;
-- a expansão `exp_10_functions` tem estrutura separada em `results/by_experiment/exp_10_functions/`;
-- a expansão `exp_10_functions` já possui resultados oficiais para Flash e Pro;
-- a expansão nova usa 50 suítes por modelo e 200 execuções-alvo por modelo;
-- os arquivos da expansão oficial não devem ser confundidos com placeholders ou resultados de preparação anterior.
+- a baseline historica de 6 funcoes continua preservada em `results/by_model/`;
+- a expansao intermediaria `exp_10_functions` continua disponivel, mas e historica e nao e a referencia principal;
+- a rodada final `exp_final_10_functions` e a referencia principal do artigo;
+- os artefatos oficiais finais devem ficar separados dos artefatos historicos e dos artefatos de validacao;
+- placeholders e CSVs de preparacao nao devem ser tratados como resultado experimental final.
 
-## Métricas
+## Metricas
 
-- `reliable_defect_detection_rate` é a métrica principal;
-- `defect_detection_rate_raw` é auxiliar;
-- `false_positive_rate` e `contaminated_bug_failure_rate` ajudam na leitura metodológica.
+- `reliable_defect_detection_rate` e a metrica principal;
+- `defect_detection_rate_raw` e auxiliar;
+- `false_positive_rate` e `contaminated_bug_failure_rate` ajudam na leitura metodologica.
 
-## Atenção
+## Atencao
 
-CSV gerado sem testes reais, ou produzido antes da execução oficial, não deve ser tratado como resultado experimental final.
+CSV gerado sem testes reais, ou produzido antes da execucao oficial, nao deve ser tratado como resultado experimental final.

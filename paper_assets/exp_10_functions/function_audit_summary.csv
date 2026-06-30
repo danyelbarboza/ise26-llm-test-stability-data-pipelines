@@ -1,0 +1,11 @@
+function_id,function_name,flash_reliable_detection_rate,pro_reliable_detection_rate,flash_false_positive_rate,pro_false_positive_rate,contract_clarity,bug_quality,main_failure_causes,audit_status,recommendation
+F01,clean_customer_names,0.2,0.2,0.8,0.8,razoavelmente claro,adequado,dtype de saida; StringDtype versus object; comparacoes rigidas com pd.NA,problematica,manter como historico e discutir limitacao
+F02,deduplicate_events,0.2,0.75,0.8,0.25,claro,adequado,falhas residuais de ordenacao temporal e desempate,boa,manter como evidencia historica
+F03,calculate_monthly_revenue,0.0,0.2,1.0,0.8,razoavelmente claro,adequado,dtype da coluna month em resultado vazio; comparacao rigida em DataFrame vazio,problematica,manter como historico e discutir limitacao
+F04,join_customers_orders,0.5,0.6666666666666666,0.5,0.3333333333333333,claro,adequado,ordenacao deterministica e chaves nulas; poucas falhas residuais,aceitavel,manter como historico
+F05,validate_schema,0.5,0.3333333333333333,0.5,0.6666666666666666,claro,adequado,tipo logico versus dtype pandas; mensagem de erro nao explicitada,aceitavel,manter como historico
+F06,classify_payment_status,0.4166666666666666,0.4,0.5,0.6,claro,adequado,bordas de reference_date e tratamento de paid_date invalido,aceitavel,manter como historico
+F07,parse_order_items_json,0.0,0.0,1.0,1.0,problematico,adequado,JSON nao-lista tratado como item; sku ausente; dtypes implicitos,critica,revisar e rodar nova versao experimental
+F08,calculate_conversion_rate,0.6,0.0,0.4,1.0,claro,adequado,expectativa equivocada sobre nomes de colunas e grupo nulo,aceitavel,manter como historico e monitorar diferenca entre modelos
+F09,cap_outliers_iqr,0.0,0.0,1.0,1.0,ambíguo,adequado,convencao de quartis e interpolacao nao documentada,critica,revisar e rodar nova versao experimental
+F10,standardize_currency_values,0.3333333333333333,0.4,0.6666666666666666,0.6,razoavelmente claro,adequado,separadores monetarios mistos e formatos invalidos,aceitavel,manter como historico e discutir limitacao

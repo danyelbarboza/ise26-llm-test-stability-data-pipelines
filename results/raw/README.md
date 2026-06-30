@@ -1,40 +1,34 @@
 # Pasta `results/raw`
 
-Esta pasta raiz existe por compatibilidade e documentação. Os CSVs oficiais agora ficam nas pastas específicas de modelo e de experimento.
+Esta pasta raiz existe por compatibilidade e documentacao. Os CSVs oficiais agora ficam nas pastas especificas de modelo e de experimento.
+
+## Arquivos esperados
+
+- `generated_tests_results.csv`
 
 ## Onde ficam os arquivos oficiais
 
-- baseline histórica de 6 funções:
+- baseline historica de 6 funcoes:
   - `results/by_model/deepseek_v4_flash/raw/`
   - `results/by_model/deepseek_v4_pro/raw/`
-- expansão de 10 funções:
+- expansao intermediaria de 10 funcoes:
   - `results/by_experiment/exp_10_functions/by_model/deepseek_v4_flash/raw/`
   - `results/by_experiment/exp_10_functions/by_model/deepseek_v4_pro/raw/`
+- rodada final do artigo:
+  - `results/by_experiment/exp_final_10_functions/by_model/deepseek_v4_flash/raw/`
+  - `results/by_experiment/exp_final_10_functions/by_model/deepseek_v4_pro/raw/`
 
-Essas pastas já guardam os CSVs oficiais reais da expansão `exp_10_functions`.
+## O que cada linha representa
 
-## O que o CSV bruto registra
+Cada linha do CSV bruto representa uma tentativa de execucao de uma suite gerada contra um alvo especifico:
 
-Cada linha representa uma execução-alvo de uma suíte gerada contra:
+- implementacao correta;
+- `BUG01`;
+- `BUG02`;
+- `BUG03`.
 
-- a implementação correta;
-- BUG01;
-- BUG02;
-- BUG03.
+## Atencao
 
-## Campos esperados
-
-- identificadores da função, da execução e do modelo/experimento;
-- tipo de alvo;
-- estado da suíte;
-- código de saída;
-- sucesso ou falha;
-- métricas derivadas como `bug_failure`, `correct_passed_for_same_suite`, `reliable_defect_detection`, `false_positive` e `contaminated_bug_failure`;
-- contagens estáticas do arquivo gerado, quando disponíveis.
-
-## Atenção
-
-- placeholders não são resultado experimental real e pertencem apenas a etapas anteriores de preparação;
-- falhas de sintaxe são registradas separadamente;
-- nunca misture Flash e Pro no mesmo CSV bruto;
-- nunca misture a baseline histórica de 6 funções com a expansão de 10 funções no mesmo arquivo.
+- `exp_10_functions` e historico e nao e a referencia principal;
+- `exp_final_10_functions` e o experimento principal do artigo;
+- CSV criado apenas para validacao interna ou antes da execucao oficial nao deve ser tratado como resultado final.

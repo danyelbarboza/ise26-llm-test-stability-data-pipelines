@@ -53,7 +53,7 @@ def test_prompt_builder_includes_targets_import_and_expected_behavior() -> None:
 
     assert "from ise26.targets import clean_customer_names" in prompt_bundle.user_prompt
     assert "Return a new DataFrame with normalized names." in prompt_bundle.user_prompt
-    assert "Não altere" in prompt_bundle.user_prompt
+    assert "nao altere" in prompt_bundle.user_prompt.lower()
 
 
 def test_extract_python_code_from_python_fence() -> None:

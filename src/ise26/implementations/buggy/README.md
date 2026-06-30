@@ -69,7 +69,7 @@ Exemplos:
 | F09 | `f09_bug03.py` | BUG03 | Sobrescreve a coluna original |
 | F10 | `f10_bug01.py` | BUG01 | Interpreta separadores brasileiros errado |
 | F10 | `f10_bug02.py` | BUG02 | Usa zero para inválidos |
-| F10 | `f10_bug03.py` | BUG03 | Não trata `R$` |
+| F10 | `f10_bug03.py` | BUG03 | N?o remove `R$` e espa?os |
 
 ## Avisos importantes
 

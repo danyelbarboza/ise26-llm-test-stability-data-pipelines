@@ -1,46 +1,43 @@
-# ISE26 - Avaliação de Testes Gerados por LLMs para Pipelines de Dados
+# ISE26 - Avaliacao de Testes Gerados por LLMs para Pipelines de Dados
 
-## Visão geral
+## Visao geral
 
-O repositório `ise26-llm-test-stability-data-pipelines` apoia um experimento acadêmico sobre a estabilidade de testes automatizados gerados por LLMs para funções de transformação de dados em Python.
+O repositorio `ise26-llm-test-stability-data-pipelines` apoia um experimento academico sobre a estabilidade de testes automatizados gerados por LLMs para funcoes de transformacao de dados em Python.
 
-O projeto tem duas trilhas experimentais:
+O projeto tem tres recortes historicos:
 
-- **`exp_6_functions`**: baseline histórica com 6 funções, já executada oficialmente para `deepseek-v4-flash` e `deepseek-v4-pro`;
-- **`exp_10_functions`**: expansão com 10 funções, já executada oficialmente para `deepseek-v4-flash` e `deepseek-v4-pro` sem sobrescrever os resultados antigos.
+- `exp_6_functions`: baseline historica usada como validacao interna;
+- `exp_10_functions`: expansao intermediaria usada como validacao interna e hoje tratada como `deprecated`;
+- `exp_final_10_functions`: experimento final do artigo, baseado na base corrigida das 10 funcoes.
 
-Na expansão `exp_10_functions`, cada modelo terá 50 suítes planejadas e 200 execuções-alvo.
-
-Os artefatos oficiais do experimento histórico ficam em `results/by_model/`. Os artefatos oficiais da expansão de 10 funções ficam em `results/by_experiment/exp_10_functions/`.
+Os resultados antigos continuam versionados para rastreabilidade, mas nao devem ser usados como resultado principal do artigo.
 
 ## Objetivo do projeto
 
-O objetivo é observar como suítes de teste geradas por LLM se comportam quando executadas contra:
+O objetivo e observar como suites de teste geradas por LLM se comportam quando executadas contra:
 
-- a implementação correta de cada função;
-- três versões defeituosas intencionais da mesma função.
+- a implementacao correta de cada funcao;
+- tres versoes defeituosas intencionais da mesma funcao.
 
-A métrica principal de detecção de defeitos é `reliable_defect_detection_rate`, porque ela só conta quando a mesma suíte passa na implementação correta e falha no bug.
+A metrica principal e `reliable_defect_detection_rate`, porque ela so conta quando a mesma suite passa na implementacao correta e falha no bug.
 
 ## Como o experimento funciona
 
-Fluxo resumido:
+A rodada final usa 10 funcoes, 2 modelos e 5 execucoes por funcao.
 
-1. validar a base com `python -m pytest`;
-2. montar o prompt padrão;
-3. gerar uma suíte por função e por execução planejada;
-4. salvar prompt, resposta bruta, código extraído, metadados e status;
-5. executar a suíte contra a implementação correta e contra os bugs;
-6. resumir os resultados por função, por run e no geral;
-7. comparar modelos apenas quando ambos tiverem resultados oficiais reais do mesmo `experiment_id`.
+- 10 funcoes corretas;
+- 30 bugs intencionais;
+- 5 runs por funcao;
+- 50 chamadas por modelo;
+- 100 chamadas planejadas no total;
+- 200 execucoes-alvo por modelo;
+- 400 execucoes-alvo no total;
+- 50 placeholders por modelo no estado inicial;
+- 100 placeholders no total antes da execucao oficial.
 
-Para evitar mistura de resultados:
+Os testes gerados pela LLM devem importar apenas `ise26.targets`. O modulo `ise26.targets` usa a variavel de ambiente `ISE26_TARGET_MODULE` para escolher a implementacao alvo sem alterar o arquivo do teste.
 
-- os artefatos de `deepseek-v4-flash` e `deepseek-v4-pro` ficam em pastas diferentes;
-- `exp_6_functions` e `exp_10_functions` também ficam separados;
-- placeholders não devem ser tratados como resultado experimental.
-
-## Estrutura do repositório
+## Estrutura do repositorio
 
 ```text
 README.md
@@ -53,14 +50,7 @@ src/
     experiment_paths.py
 experiments/
   config/
-    deepseek_v4_flash.json
-    deepseek_v4_pro.json
-    deepseek_v4_flash_10_functions.json
-    deepseek_v4_pro_10_functions.json
   generated_tests/
-    deepseek_v4_flash/
-    deepseek_v4_pro/
-    exp_10_functions/
   prompts/
   protocol.md
 results/
@@ -69,77 +59,76 @@ results/
 paper_assets/
   tables/
   model_comparison/
-  exp_10_functions/
+  exp_final_10_functions/
 scripts/
 tests/
 ```
 
-## Funções corretas
+## Funcoes corretas
 
-As funções corretas oficiais ficam em `src/ise26/implementations/correct.py`.
+As 10 funcoes corretas oficiais ficam em `src/ise26/implementations/correct.py`.
 
-| ID | Função | Papel |
+| ID | Funcao | Papel |
 |---|---|---|
 | F01 | `clean_customer_names` | Padroniza nomes de clientes |
 | F02 | `deduplicate_events` | Remove eventos duplicados mantendo o mais recente |
 | F03 | `calculate_monthly_revenue` | Calcula receita mensal |
-| F04 | `join_customers_orders` | Faz junção entre clientes e pedidos |
-| F05 | `validate_schema` | Valida schema lógico de um `DataFrame` |
+| F04 | `join_customers_orders` | Faz jun??o deterministica entre clientes e pedidos |
+| F05 | `validate_schema` | Valida schema logico de um `DataFrame` |
 | F06 | `classify_payment_status` | Classifica status de pagamento |
 | F07 | `parse_order_items_json` | Expande itens de pedidos codificados em JSON |
-| F08 | `calculate_conversion_rate` | Calcula taxa de conversão por canal |
+| F08 | `calculate_conversion_rate` | Calcula taxa de conversao por canal |
 | F09 | `cap_outliers_iqr` | Limita outliers com base em IQR |
-| F10 | `standardize_currency_values` | Padroniza valores monetários textuais |
+| F10 | `standardize_currency_values` | Padroniza valores monetarios textuais |
 
-## Versões defeituosas
+## Versoes defeituosas
 
-Cada função correta tem 3 versões defeituosas intencionais, totalizando 30 bugs.
+Cada funcao correta tem 3 versoes defeituosas intencionais, totalizando 30 bugs.
 
-| Função | Bugs intencionais |
+| Funcao | Bugs intencionais |
 |---|---|
-| F01 | não tratar nulos; não remover acentos; não remover espaços extras |
+| F01 | nao tratar nulos; nao remover acentos; nao remover espacos extras |
 | F02 | manter o primeiro evento; remover `event_id` nulo; ordenar timestamp como string |
-| F03 | somar cancelados; não tratar valores inválidos como zero; agrupar por dia |
-| F04 | usar `inner join`; não criar `record_status`; classificar incorretamente chaves nulas |
-| F05 | ignorar ausências; ignorar erros de tipo; reprovar colunas extras |
-| F06 | tratar vencimento como atraso; tratar `amount` zero como pendente; tratar `paid_date` inválido como ausência |
-| F07 | manter só o primeiro item; somar em vez de multiplicar; emitir linha para JSON inválido |
-| F08 | inverter a fórmula; não proteger divisão por zero; calcular taxa antes de agregar |
-| F09 | usar média/desvio; trocar nulos por zero; sobrescrever a coluna original |
-| F10 | interpretar separadores brasileiros errado; usar zero para inválidos; não tratar `R$` |
+| F03 | somar cancelados; nao tratar invalidos como zero; agrupar por dia |
+| F04 | usar `inner join`; nao criar `record_status`; classificar incorretamente chaves nulas |
+| F05 | ignorar ausencias; ignorar erros de tipo; reprovar colunas extras |
+| F06 | tratar vencimento como atraso; tratar `amount` zero como pendente; tratar `paid_date` invalido como ausente |
+| F07 | manter so o primeiro item; somar em vez de multiplicar; emitir linha para JSON invalido |
+| F08 | inverter a formula; nao proteger divisao por zero; calcular antes de agregar |
+| F09 | usar media/desvio; trocar nulos por zero; sobrescrever a coluna original |
+| F10 | interpretar separadores brasileiros errado; usar zero para invalidos; nao remover `R$` e espacos |
 
 ## Testes internos
 
 Os testes internos ficam em `tests/` e servem para:
 
-- validar as funções corretas;
-- confirmar que os bugs continuam diferentes da referência;
+- validar as funcoes corretas;
+- confirmar que os bugs continuam diferentes da referencia;
 - checar `ise26.targets`;
-- validar o runner e os summaries em cenários sintéticos;
-- garantir que a infraestrutura multi-modelo e multi-experimento não misture caminhos.
+- validar runner, summaries e comparador em cenarios sinteticos;
+- garantir que a infraestrutura nao misture modelos nem experimentos.
 
 ## Testes gerados por LLM
 
 Os testes gerados pela LLM devem:
 
 - importar apenas `ise26.targets`;
-- criar seus próprios `DataFrame`s sintéticos dentro de `test_generated.py`;
-- não usar `tests/fixtures.py`;
-- não importar `ise26.implementations` diretamente.
+- criar seus proprios `DataFrame`s sinteticos dentro de `test_generated.py`;
+- nao usar `tests/fixtures.py`;
+- nao importar `ise26.implementations` diretamente;
+- nao editar manualmente o codigo gerado.
 
-`tests/fixtures.py` é exclusivo dos testes internos.
+`tests/fixtures.py` e exclusivo dos testes internos.
 
 ## Resultados
 
-Há dois tipos de organização de saída:
+Existem tres trilhas de resultado:
 
-- `results/by_model/<modelo>/...`: baseline histórica de 6 funções;
-- `results/by_experiment/exp_10_functions/by_model/<modelo>/...`: resultados oficiais da expansão de 10 funções.
+- `results/by_model/`: baseline historica de 6 funcoes, mantida apenas para rastreabilidade;
+- `results/by_experiment/exp_10_functions/`: expansao intermediaria, hoje tratada como `deprecated`;
+- `results/by_experiment/exp_final_10_functions/`: resultados oficiais do artigo.
 
-Os resultados comparativos ficam em:
-
-- `paper_assets/model_comparison/`: comparação histórica da baseline de 6 funções;
-- `paper_assets/exp_10_functions/model_comparison/`: comparação oficial da expansão de 10 funções entre Flash e Pro.
+Os resultados comparativos oficiais da rodada final ficam em `paper_assets/exp_final_10_functions/model_comparison/`.
 
 ## Como instalar
 
@@ -153,99 +142,76 @@ pip install -r requirements.txt
 python -m pytest
 ```
 
-No Windows, este é o comando recomendado.
+No Windows, este e o comando recomendado.
 
-## Como rodar o experimento
+## Como rodar a preparacao e o experimento final
 
-### Baseline histórica de 6 funções
-
-Geração em modo seguro:
+### Preparacao segura
 
 ```bash
-python scripts/generate_llm_tests.py --dry-run --config experiments/config/deepseek_v4_flash.json
-python scripts/generate_llm_tests.py --dry-run --config experiments/config/deepseek_v4_pro.json
+python scripts/generate_llm_tests.py --dry-run --experiment-id exp_final_10_functions --config experiments/config/deepseek_v4_flash_final_10_functions.json
+python scripts/generate_llm_tests.py --dry-run --experiment-id exp_final_10_functions --config experiments/config/deepseek_v4_pro_final_10_functions.json
+python scripts/run_generated_tests.py --experiment-id exp_final_10_functions --model deepseek_v4_flash
+python scripts/run_generated_tests.py --experiment-id exp_final_10_functions --model deepseek_v4_pro
+python scripts/summarize_results.py --experiment-id exp_final_10_functions --model deepseek_v4_flash
+python scripts/summarize_results.py --experiment-id exp_final_10_functions --model deepseek_v4_pro
+python scripts/compare_model_results.py --experiment-id exp_final_10_functions
 ```
 
-Runner e summaries:
+### Execucao oficial
 
-```bash
-python scripts/run_generated_tests.py --model deepseek_v4_flash
-python scripts/summarize_results.py --model deepseek_v4_flash
-python scripts/run_generated_tests.py --model deepseek_v4_pro
-python scripts/summarize_results.py --model deepseek_v4_pro
-python scripts/compare_model_results.py
-```
-
-### Expansão de 10 funções
-
-Geração em modo seguro:
-
-```bash
-python scripts/generate_llm_tests.py --dry-run --experiment-id exp_10_functions --config experiments/config/deepseek_v4_flash_10_functions.json
-python scripts/generate_llm_tests.py --dry-run --experiment-id exp_10_functions --config experiments/config/deepseek_v4_pro_10_functions.json
-```
-
-Execução e resumo da expansão:
-
-```bash
-python scripts/run_generated_tests.py --experiment-id exp_10_functions --model deepseek_v4_flash
-python scripts/summarize_results.py --experiment-id exp_10_functions --model deepseek_v4_flash
-python scripts/run_generated_tests.py --experiment-id exp_10_functions --model deepseek_v4_pro
-python scripts/summarize_results.py --experiment-id exp_10_functions --model deepseek_v4_pro
-python scripts/compare_model_results.py --experiment-id exp_10_functions
-```
-
-O comando de geração real só deve ser usado com `--execute` e confirmação explícita.
+A execucao oficial so deve ser feita com `--execute` e confirmacao explicita.
 
 ## Como interpretar os arquivos gerados
 
-- `raw/`: linhas detalhadas de cada execução-alvo;
-- `summary/`: agregações por função, por run e no geral;
-- `reports/`: relatórios em Markdown para leitura humana;
-- `paper_assets/`: tabelas e resumos prontos para o artigo.
+- `raw/`: linhas detalhadas de cada execucao-alvo;
+- `summary/`: agregacoes por funcao, por run e no geral;
+- `reports/`: relatorios em Markdown para leitura humana;
+- `paper_assets/`: tabelas, resumos e comparacao final para o artigo.
 
 Em especial:
 
 - `bug_failure_rate` mostra falha bruta contra o bug;
-- `reliable_defect_detection_rate` mostra detecção confiável;
-- `false_positive_rate` mostra quando a suíte falha na correta;
+- `reliable_defect_detection_rate` mostra detecao confiavel;
+- `false_positive_rate` mostra quando a suite falha na correta;
 - `contaminated_bug_failure_rate` mostra quando a falha no bug veio contaminada por falha na correta;
-- `defect_detection_rate_raw` é auxiliar e não deve ser usada sozinha.
+- `defect_detection_rate_raw` e auxiliar e nao deve ser usada sozinha.
 
-## O que não fazer
+## Guia rapido para quem esta comecando
 
-- não inventar teste gerado por LLM;
-- não inventar resultado experimental;
-- não alterar função correta sem atualizar testes, metadados e documentação;
-- não corrigir bugs intencionais;
-- não mudar o prompt oficial no meio de uma rodada;
-- não apagar CSVs sem registrar;
-- não misturar teste manual com teste gerado por LLM;
-- não comparar modelos usando placeholders.
-
-## Guia rápido para quem está começando
-
-- Python é a linguagem principal do projeto;
-- Pandas é a biblioteca usada para trabalhar com `DataFrames`;
-- Pytest executa os testes do repositório;
-- função correta é a implementação de referência;
-- função defeituosa é uma variante intencionalmente errada;
-- teste gerado por LLM é a suíte produzida pela IA para avaliar as funções;
-- se você está começando, leia o protocolo e rode `python -m pytest` antes de mexer nos scripts;
-- evite alterar `src/ise26/implementations/`, `src/ise26/metadata/`, `experiments/protocol.md` e os diretórios oficiais de resultado sem orientação.
+- Python e a linguagem principal do projeto;
+- Pandas e a biblioteca usada para trabalhar com `DataFrames`;
+- Pytest executa os testes do repositorio;
+- funcao correta e a implementacao de referencia;
+- funcao defeituosa e uma variante intencionalmente errada;
+- teste gerado por LLM e a suite produzida pela IA para avaliar as funcoes;
+- se voce esta comecando, leia o protocolo e rode `python -m pytest` antes de mexer nos scripts;
+- evite alterar `src/ise26/implementations/`, `src/ise26/metadata/`, `experiments/protocol.md` e os diretorios oficiais de resultado sem orientacao.
 
 ## Fluxo recomendado de trabalho
 
-1. instalar dependências;
+1. instalar dependencias;
 2. rodar os testes internos;
 3. ler o protocolo experimental;
-4. gerar testes com a LLM usando o prompt padrão;
-5. salvar cada execução na pasta correta do modelo e do experimento;
+4. gerar testes com a LLM usando o prompt padrao;
+5. salvar cada execucao na pasta correta do modelo e do experimento;
 6. rodar o runner;
 7. gerar os resumos;
 8. analisar os resultados;
 9. comparar modelos apenas quando ambos estiverem completos e no mesmo `experiment_id`.
 
-## Próximos passos
+## O que nao fazer
 
-O próximo passo é analisar os resultados oficiais da expansão `exp_10_functions` com Flash e Pro, sem misturar com a baseline histórica de 6 funções.
+- nao inventar teste gerado por LLM;
+- nao inventar resultado experimental;
+- nao alterar funcao correta sem atualizar testes, metadados e documentacao;
+- nao corrigir bugs intencionais;
+- nao mudar o prompt oficial no meio de uma rodada;
+- nao apagar CSVs sem registrar;
+- nao misturar teste manual com teste gerado por LLM;
+- nao comparar modelos usando placeholders;
+- nao misturar resultados historicos com o experimento final.
+
+## Proximos passos
+
+O proximo passo e executar a rodada final `exp_final_10_functions` com Flash e Pro, sem misturar com os resultados historicos nem com os experimentos de validacao interna.
