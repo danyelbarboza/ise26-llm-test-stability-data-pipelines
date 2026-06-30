@@ -1,4 +1,107 @@
-"""Placeholder file created by the LLM generation infrastructure."""
+import pytest
+import pandas as pd
+from ise26.targets import cap_outliers_iqr
 
-# Generation status: placeholder
-# GENERATED_TEST_PLACEHOLDER
+
+def test_no_outliers():
+    df = pd.DataFrame({"amount": [1.0, 2.0, 3.0, 4.0, 5.0]})
+    result = cap_outliers_iqr(df, value_col="amount", output_col="capped")
+    expected = pd.Series([1.0, 2.0, 3.0, 4.0, 5.0], dtype="Float64", name="capped")
+    pd.testing.assert_series_equal(result["capped"], expected)
+    pd.testing.assert_frame_equal(df, pd.DataFrame({"amount": [1.0, 2.0, 3.0, 4.0, 5.0]}),
+                                  check_dtype=False)
+
+
+def test_outliers_are_capped():
+    df = pd.DataFrame({"amount": [10.0, 20.0, 30.0, 40.0, 1000.0, -100.0]})
+    result = cap_outliers_iqr(df, value_col="amount", output_col="capped")
+    # Q1 = 17.5, Q3 = 37.5, IQR = 20.0
+    # lower = 17.5 - 30 = -12.5, upper = 37.5 + 30 = 67.5
+    lower = -12.5
+    upper = 67.5
+    expected_values = [10.0, 20.0, 30.0, 40.0, upper, lower]
+    expected = pd.Series(expected_values, dtype="Float64", name="capped")
+    pd.testing.assert_series_equal(result["capped"], expected)
+    assert "amount" in result.columns
+    assert pd.api.types.is_float_dtype(result["amount"])
+
+
+def test_less_than_two_valid():
+    df = pd.DataFrame({"amount": [5.0, None]})
+    result = cap_outliers_iqr(df, value_col="amount", output_col="capped")
+    expected = pd.Series([5.0, pd.NA], dtype="Float64", name="capped")
+    pd.testing.assert_series_equal(result["capped"], expected)
+
+
+def test_all_missing():
+    df = pd.DataFrame({"amount": [None, None]})
+    result = cap_outliers_iqr(df, value_col="amount", output_col="capped")
+    expected = pd.Series([pd.NA, pd.NA], dtype="Float64", name="capped")
+    pd.testing.assert_series_equal(result["capped"], expected)
+
+
+def test_single_non_missing():
+    df = pd.DataFrame({"amount": [42.0, None, None]})
+    result = cap_outliers_iqr(df, value_col="amount", output_col="capped")
+    expected = pd.Series([42.0, pd.NA, pd.NA], dtype="Float64", name="capped")
+    pd.testing.assert_series_equal(result["capped"], expected)
+
+
+def test_non_numeric_values_treated_as_missing():
+    df = pd.DataFrame({"amount": [10.0, "abc", 20.0, 30.0, 40.0, 50.0]})
+    result = cap_outliers_iqr(df, value_col="amount", output_col="capped")
+    # Valid: 10,20,30,40,50 -> Q1=20, Q3=40, IQR=20, bounds: 20-30=-10, 40+30=70, none capped
+    expected_values = [10.0, pd.NA, 20.0, 30.0, 40.0, 50.0]
+    expected = pd.Series(expected_values, dtype="Float64", name="capped")
+    pd.testing.assert_series_equal(result["capped"], expected)
+
+
+def test_original_column_preserved_and_separate():
+    df = pd.DataFrame({"amount": [1.0, 2.0, 3.0, 100.0]})
+    original = df.copy()
+    result = cap_outliers_iqr(df, value_col="amount", output_col="capped")
+    pd.testing.assert_frame_equal(df, original)
+    assert "capped" in result.columns
+    assert "amount" in result.columns
+    assert result["amount"].dtype == df["amount"].dtype
+    # Ensure not same object
+    assert result is not df
+    assert result["amount"] is not df["amount"]
+
+
+def test_all_equal_values():
+    df = pd.DataFrame({"amount": [5.0, 5.0, 5.0, 5.0]})
+    result = cap_outliers_iqr(df, value_col="amount", output_col="capped")
+    expected = pd.Series([5.0, 5.0, 5.0, 5.0], dtype="Float64", name="capped")
+    pd.testing.assert_series_equal(result["capped"], expected)
+
+
+def test_mixed_with_negatives_and_positives():
+    df = pd.DataFrame({"amount": [-10.0, -5.0, 0.0, 5.0, 10.0, 15.0, 20.0]})
+    result = cap_outliers_iqr(df, value_col="amount", output_col="capped")
+    # Q1 = -5, Q3 = 15, IQR = 20, bounds: -5-30=-35, 15+30=45, no caps
+    expected = pd.Series([-10.0, -5.0, 0.0, 5.0, 10.0, 15.0, 20.0], dtype="Float64", name="capped")
+    pd.testing.assert_series_equal(result["capped"], expected)
+
+
+def test_output_dtype_is_float64():
+    df = pd.DataFrame({"amount": [1.0, 2.0, 3.0, 4.0, 5.0]})
+    result = cap_outliers_iqr(df, value_col="amount", output_col="capped")
+    assert result["capped"].dtype == "Float64"
+
+
+def test_nan_preserved_in_capped():
+    df = pd.DataFrame({"amount": [1.0, float("nan"), 3.0, 4.0, 100.0]})
+    result = cap_outliers_iqr(df, value_col="amount", output_col="capped")
+    # Valid: 1,3,4,100 -> Q1=2.5?, Q3=78.25? IQR=75.75? lower=2.5-113.625=-111.125, upper=78.25+113.625=191.875, none capped
+    # But nan stays nan
+    expected = pd.Series([1.0, pd.NA, 3.0, 4.0, 100.0], dtype="Float64", name="capped")
+    pd.testing.assert_series_equal(result["capped"], expected)
+
+
+def test_zero_variance_after_removal_of_nans():
+    # Only one non-null value after coercion -> less than 2 valid
+    df = pd.DataFrame({"amount": [None, "bad", 5.0]})
+    result = cap_outliers_iqr(df, value_col="amount", output_col="capped")
+    expected = pd.Series([pd.NA, pd.NA, 5.0], dtype="Float64", name="capped")
+    pd.testing.assert_series_equal(result["capped"], expected)

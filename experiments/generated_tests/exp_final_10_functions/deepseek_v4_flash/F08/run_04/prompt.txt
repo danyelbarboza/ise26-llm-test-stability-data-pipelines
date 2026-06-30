@@ -1,0 +1,107 @@
+# Template oficial de geracao de testes do ISE26
+
+Gere uma suite de testes em `pytest` para a funcao Python descrita abaixo.
+
+Requisitos obrigatorios:
+
+- importe a funcao somente a partir de `ise26.targets`;
+- use `pytest`;
+- nao altere, nao reimplemente e nao envolva a funcao original;
+- nao use API externa, arquivos externos, rede, banco de dados ou recursos fora do proprio teste;
+- crie os `DataFrame`s sinteticos necessarios dentro do proprio arquivo de teste;
+- nao mencione nem incentive `tests/fixtures.py`;
+- cubra casos comuns e casos de borda;
+- quando o contrato documentar dtype, nulos, ordenacao, arredondamento ou convencao estatistica, verifique isso exatamente como descrito;
+- verifique comportamento por meio de valores retornados e estruturas produzidas pela funcao;
+- retorne apenas codigo Python do arquivo de teste;
+- nao inclua cercas Markdown;
+- nao inclua explicacoes fora do codigo.
+
+Importacao esperada:
+
+```python
+from ise26.targets import calculate_conversion_rate
+```
+
+Metadados da funcao:
+
+- ID da funcao: `F08`
+- Nome da funcao: `calculate_conversion_rate`
+- Descricao resumida: `Aggregate visits and conversions by channel and compute the conversion rate.`
+
+Docstring da funcao:
+
+```text
+Aggregate conversion metrics and compute the conversion rate.
+
+Missing or invalid numeric values are treated as zero before aggregation.
+Missing or blank channels are normalized to ``unknown`` before grouping,
+and the grouped channels are sorted alphabetically in the returned DataFrame.
+
+Args:
+    df: Source DataFrame with channel-level activity metrics.
+    group_col: Column that identifies the grouping dimension.
+    visits_col: Column containing visit counts.
+    conversions_col: Column containing conversion counts.
+
+Returns:
+    A new DataFrame with ``channel``, ``visits``, ``conversions``, and
+    ``conversion_rate`` columns.
+```
+
+Comportamento esperado:
+
+`Group rows by channel, sum visits and conversions with invalid or missing values treated as zero, compute conversion_rate as conversions divided by visits, return zero when visits are zero or invalid, and sort the output by channel.`
+
+Codigo da funcao correta:
+
+```python
+def calculate_conversion_rate(
+    df: pd.DataFrame,
+    group_col: str = "channel",
+    visits_col: str = "visits",
+    conversions_col: str = "conversions",
+) -> pd.DataFrame:
+    """Aggregate conversion metrics and compute the conversion rate.
+
+    Missing or invalid numeric values are treated as zero before aggregation.
+    Missing or blank channels are normalized to ``unknown`` before grouping,
+    and the grouped channels are sorted alphabetically in the returned DataFrame.
+
+    Args:
+        df: Source DataFrame with channel-level activity metrics.
+        group_col: Column that identifies the grouping dimension.
+        visits_col: Column containing visit counts.
+        conversions_col: Column containing conversion counts.
+
+    Returns:
+        A new DataFrame with ``channel``, ``visits``, ``conversions``, and
+        ``conversion_rate`` columns.
+    """
+
+    result = _clone_dataframe(df)
+    _ensure_columns_present(result, [group_col, visits_col, conversions_col], "calculate_conversion_rate")
+    aggregated = pd.DataFrame(
+        {
+            group_col: result[group_col].apply(_normalize_group_label),
+            "_visits": pd.to_numeric(result[visits_col], errors="coerce").fillna(0),
+            "_conversions": pd.to_numeric(result[conversions_col], errors="coerce").fillna(0),
+        }
+    )
+
+    grouped = (
+        aggregated.groupby(group_col, as_index=False, dropna=False)[["_visits", "_conversions"]]
+        .sum()
+        .sort_values(group_col, kind="stable")
+        .reset_index(drop=True)
+    )
+
+    grouped["visits"] = grouped["_visits"].astype(float)
+    grouped["conversions"] = grouped["_conversions"].astype(float)
+    grouped["conversion_rate"] = grouped.apply(
+        lambda row: 0.0 if row["visits"] <= 0 else float(row["conversions"] / row["visits"]),
+        axis=1,
+    )
+
+    return grouped[[group_col, "visits", "conversions", "conversion_rate"]]
+```

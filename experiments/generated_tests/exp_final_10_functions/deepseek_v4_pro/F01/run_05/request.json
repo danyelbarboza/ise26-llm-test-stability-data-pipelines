@@ -1,0 +1,22 @@
+{
+  "provider": "DeepSeek",
+  "base_url": "https://api.deepseek.com",
+  "model": "deepseek-v4-pro",
+  "messages": [
+    {
+      "role": "system",
+      "content": "You generate pytest suites for Python data-transformation functions. Return only valid Python code for the test file and do not include Markdown fences."
+    },
+    {
+      "role": "user",
+      "content": "# Template oficial de geracao de testes do ISE26\n\nGere uma suite de testes em `pytest` para a funcao Python descrita abaixo.\n\nRequisitos obrigatorios:\n\n- importe a funcao somente a partir de `ise26.targets`;\n- use `pytest`;\n- nao altere, nao reimplemente e nao envolva a funcao original;\n- nao use API externa, arquivos externos, rede, banco de dados ou recursos fora do proprio teste;\n- crie os `DataFrame`s sinteticos necessarios dentro do proprio arquivo de teste;\n- nao mencione nem incentive `tests/fixtures.py`;\n- cubra casos comuns e casos de borda;\n- quando o contrato documentar dtype, nulos, ordenacao, arredondamento ou convencao estatistica, verifique isso exatamente como descrito;\n- verifique comportamento por meio de valores retornados e estruturas produzidas pela funcao;\n- retorne apenas codigo Python do arquivo de teste;\n- nao inclua cercas Markdown;\n- nao inclua explicacoes fora do codigo.\n\nImportacao esperada:\n\n```python\nfrom ise26.targets import clean_customer_names\n```\n\nMetadados da funcao:\n\n- ID da funcao: `F01`\n- Nome da funcao: `clean_customer_names`\n- Descricao resumida: `Standardize customer names into a new normalized column without mutating the original DataFrame.`\n\nDocstring da funcao:\n\n```text\nStandardize customer names into a new normalized column.\n\nThe transformation collapses repeated whitespace, lowercases the content,\nremoves accent marks, and maps null or blank values to ``pd.NA``. The\noriginal input DataFrame is preserved.\n\nArgs:\n    df: Source DataFrame containing the customer name column.\n    name_col: Name of the input column with raw customer names.\n    output_col: Name of the output column that will store normalized names.\n\nReturns:\n    A new DataFrame containing the additional normalized name column.\n```\n\nComportamento esperado:\n\n`Receive a DataFrame, create a new normalized name column, remove extra spaces, lowercase values, remove accents, convert null or blank values to pandas.NA, and preserve the original DataFrame unchanged.`\n\nCodigo da funcao correta:\n\n```python\ndef clean_customer_names(\n    df: pd.DataFrame,\n    name_col: str = \"customer_name\",\n    output_col: str = \"customer_name_clean\",\n) -> pd.DataFrame:\n    \"\"\"Standardize customer names into a new normalized column.\n\n    The transformation collapses repeated whitespace, lowercases the content,\n    removes accent marks, and maps null or blank values to ``pd.NA``. The\n    original input DataFrame is preserved.\n\n    Args:\n        df: Source DataFrame containing the customer name column.\n        name_col: Name of the input column with raw customer names.\n        output_col: Name of the output column that will store normalized names.\n\n    Returns:\n        A new DataFrame containing the additional normalized name column.\n    \"\"\"\n\n    result = _clone_dataframe(df)\n    _ensure_columns_present(result, [name_col], \"clean_customer_names\")\n    result[output_col] = result[name_col].apply(_normalize_optional_string)\n    return result\n```\n"
+    }
+  ],
+  "parameters": {
+    "temperature": 0.7,
+    "top_p": 1.0,
+    "max_tokens": 4096,
+    "stream": false,
+    "history_policy": "no_history_between_calls"
+  }
+}

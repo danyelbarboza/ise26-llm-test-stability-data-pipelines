@@ -1,0 +1,284 @@
+```python
+import pytest
+import pandas as pd
+from ise26.targets import calculate_monthly_revenue
+
+
+class TestCalculateMonthlyRevenue:
+    def test_basic_aggregation(self):
+        df = pd.DataFrame(
+            {
+                "order_date": ["2023-01-15", "2023-01-20", "2023-02-10"],
+                "amount": [100, 200, 50],
+                "status": ["completed", "pending", "shipped"],
+            }
+        )
+        result = calculate_monthly_revenue(df)
+        expected = pd.DataFrame(
+            {
+                "month": pd.Series(["2023-01", "2023-02"], dtype="string"),
+                "revenue": pd.Series([300.0, 50.0], dtype="float64"),
+            }
+        )
+        pd.testing.assert_frame_equal(result, expected)
+
+    def test_returns_expected_columns(self):
+        df = pd.DataFrame(
+            {
+                "order_date": ["2023-01-01"],
+                "amount": [100],
+                "status": ["active"],
+            }
+        )
+        result = calculate_monthly_revenue(df)
+        assert list(result.columns) == ["month", "revenue"]
+
+    def test_result_dtypes(self):
+        df = pd.DataFrame(
+            {
+                "order_date": ["2023-02-01"],
+                "amount": [50],
+                "status": ["ok"],
+            }
+        )
+        result = calculate_monthly_revenue(df)
+        assert result["month"].dtype == pd.StringDtype()
+        assert result["revenue"].dtype == "float64"
+
+    def test_empty_input(self):
+        df = pd.DataFrame({"order_date": [], "amount": [], "status": []})
+        result = calculate_monthly_revenue(df)
+        expected = pd.DataFrame(
+            {
+                "month": pd.Series(dtype="string"),
+                "revenue": pd.Series(dtype="float64"),
+            }
+        )
+        pd.testing.assert_frame_equal(result, expected)
+
+    def test_all_rows_ignored_due_to_cancel(self):
+        df = pd.DataFrame(
+            {
+                "order_date": ["2023-03-01", "2023-03-02"],
+                "amount": [100, 200],
+                "status": ["cancelled", "Cancelado "],
+            }
+        )
+        result = calculate_monthly_revenue(df)
+        assert result.empty
+        assert list(result.columns) == ["month", "revenue"]
+
+    def test_all_invalid_dates(self):
+        df = pd.DataFrame(
+            {
+                "order_date": ["not_a_date", "2023-13-01", None],
+                "amount": [100, 200, 300],
+                "status": ["ok"] * 3,
+            }
+        )
+        result = calculate_monthly_revenue(df)
+        assert result.empty
+        assert list(result.columns) == ["month", "revenue"]
+
+    def test_invalid_and_missing_amounts_treated_as_zero(self):
+        df = pd.DataFrame(
+            {
+                "order_date": ["2023-01-01", "2023-01-01", "2023-01-01"],
+                "amount": [100, "invalid", None],
+                "status": ["ok", "ok", "ok"],
+            }
+        )
+        result = calculate_monthly_revenue(df)
+        assert len(result) == 1
+        assert result.loc[0, "revenue"] == 100.0
+
+    def test_canceled_statuses_ignored_english_and_portuguese(self):
+        df = pd.DataFrame(
+            {
+                "order_date": ["2023-01-01", "2023-01-01", "2023-01-01", "2023-01-01"],
+                "amount": [10, 20, 30, 40],
+                "status": [
+                    " cancelled ",
+                    "CANCELED",
+                    "Cancelado",
+                    "delivered",
+                ],
+            }
+        )
+        result = calculate_monthly_revenue(df)
+        assert len(result) == 1
+        assert result.loc[0, "revenue"] == 40.0
+
+    def test_canceled_case_insensitive(self):
+        df = pd.DataFrame(
+            {
+                "order_date": ["2023-04-01"],
+                "amount": [50],
+                "status": ["Cancelled"],
+            }
+        )
+        result = calculate_monthly_revenue(df)
+        assert result.empty
+
+    def test_non_canceled_statuses_kept(self):
+        df = pd.DataFrame(
+            {
+                "order_date": ["2023-05-01", "2023-05-02"],
+                "amount": [10, 20],
+                "status": ["pending", "shipped"],
+            }
+        )
+        result = calculate_monthly_revenue(df)
+        assert len(result) == 1
+        assert result.loc[0, "revenue"] == 30.0
+
+    def test_sorted_by_month_ascending(self):
+        df = pd.DataFrame(
+            {
+                "order_date": ["2023-03-01", "2023-01-01", "2023-02-01"],
+                "amount": [3, 1, 2],
+                "status": ["ok"] * 3,
+            }
+        )
+        result = calculate_monthly_revenue(df)
+        expected_months = ["2023-01", "2023-02", "2023-03"]
+        assert result["month"].tolist() == expected_months
+
+    def test_month_format_yyyy_mm(self):
+        df = pd.DataFrame(
+            {
+                "order_date": ["2023-12-31"],
+                "amount": [100],
+                "status": ["ok"],
+            }
+        )
+        result = calculate_monthly_revenue(df)
+        assert result.loc[0, "month"] == "2023-12"
+
+    def test_multiple_years_and_months(self):
+        df = pd.DataFrame(
+            {
+                "order_date": ["2022-12-01", "2023-01-01", "2023-01-02"],
+                "amount": [10, 20, 30],
+                "status": ["a", "b", "c"],
+            }
+        )
+        result = calculate_monthly_revenue(df)
+        assert len(result) == 2
+        assert result.iloc[0]["month"] == "2022-12"
+        assert result.iloc[0]["revenue"] == 10.0
+        assert result.iloc[1]["month"] == "2023-01"
+        assert result.iloc[1]["revenue"] == 50.0
+
+    def test_zero_amount_rows_still_contribute_month(self):
+        df = pd.DataFrame(
+            {
+                "order_date": ["2023-06-01", "2023-06-01"],
+                "amount": [0, 0],
+                "status": ["ok", "ok"],
+            }
+        )
+        result = calculate_monthly_revenue(df)
+        assert len(result) == 1
+        assert result.loc[0, "revenue"] == 0.0
+
+    def test_mixed_scenarios(self):
+        df = pd.DataFrame(
+            {
+                "order_date": [
+                    "2023-01-15",
+                    "2023-01-20",
+                    "2023-02-10",
+                    "invalid_date",
+                    "2023-02-20",
+                    "2023-03-01",
+                ],
+                "amount": [100, "bad", 50, 200, 300, None],
+                "status": [
+                    "completed",
+                    "cancelled",
+                    "shipped",
+                    "active",
+                    " canceled ",
+                    "active",
+                ],
+            }
+        )
+        result = calculate_monthly_revenue(df)
+        # Expected:
+        # 2023-01: only row1 (100) because row2 amount=bad becomes 0 but status cancelled => ignored
+        # 2023-02: row3 (50 shipped) + row5 (300 canceled => ignored) => only 50
+        # 2023-03: row6 amount None => 0, status active => 0.0
+        expected = pd.DataFrame(
+            {
+                "month": pd.Series(["2023-01", "2023-02", "2023-03"], dtype="string"),
+                "revenue": pd.Series([100.0, 50.0, 0.0], dtype="float64"),
+            }
+        )
+        pd.testing.assert_frame_equal(result, expected)
+
+    def test_custom_column_names(self):
+        df = pd.DataFrame(
+            {
+                "dt": ["2023-01-01", "2023-01-02"],
+                "val": [10, 20],
+                "state": ["ok", "cancelled"],
+            }
+        )
+        result = calculate_monthly_revenue(
+            df, date_col="dt", amount_col="val", status_col="state"
+        )
+        assert len(result) == 1
+        assert result.loc[0, "revenue"] == 10.0
+
+    def test_original_dataframe_not_mutated(self):
+        df = pd.DataFrame(
+            {
+                "order_date": ["2023-01-01"],
+                "amount": [100],
+                "status": ["ok"],
+            }
+        )
+        original = df.copy()
+        _ = calculate_monthly_revenue(df)
+        pd.testing.assert_frame_equal(df, original)
+
+    def test_status_nan_kept_not_canceled(self):
+        # NaN status should not be treated as canceled; it should be kept.
+        df = pd.DataFrame(
+            {
+                "order_date": ["2023-07-01"],
+                "amount": [75],
+                "status": [None],
+            }
+        )
+        result = calculate_monthly_revenue(df)
+        assert len(result) == 1
+        assert result.loc[0, "revenue"] == 75.0
+
+    def test_date_parsing_with_different_formats(self):
+        df = pd.DataFrame(
+            {
+                "order_date": [
+                    "2023/08/15",
+                    "15-09-2023",
+                    "2023-10-01 12:30:00",
+                ],
+                "amount": [1, 2, 3],
+                "status": ["ok"] * 3,
+            }
+        )
+        result = calculate_monthly_revenue(df)
+        expected = pd.DataFrame(
+            {
+                "month": pd.Series(["2023-08", "2023-09", "2023-10"], dtype="string"),
+                "revenue": pd.Series([1.0, 2.0, 3.0], dtype="float64"),
+            }
+        )
+        pd.testing.assert_frame_equal(result, expected)
+
+    def test_result_index_reset(self):
+        df = pd.DataFrame(
+            {
+                "order_date": ["2023-01-01"],
+               

@@ -1,0 +1,115 @@
+# Template oficial de geracao de testes do ISE26
+
+Gere uma suite de testes em `pytest` para a funcao Python descrita abaixo.
+
+Requisitos obrigatorios:
+
+- importe a funcao somente a partir de `ise26.targets`;
+- use `pytest`;
+- nao altere, nao reimplemente e nao envolva a funcao original;
+- nao use API externa, arquivos externos, rede, banco de dados ou recursos fora do proprio teste;
+- crie os `DataFrame`s sinteticos necessarios dentro do proprio arquivo de teste;
+- nao mencione nem incentive `tests/fixtures.py`;
+- cubra casos comuns e casos de borda;
+- quando o contrato documentar dtype, nulos, ordenacao, arredondamento ou convencao estatistica, verifique isso exatamente como descrito;
+- verifique comportamento por meio de valores retornados e estruturas produzidas pela funcao;
+- retorne apenas codigo Python do arquivo de teste;
+- nao inclua cercas Markdown;
+- nao inclua explicacoes fora do codigo.
+
+Importacao esperada:
+
+```python
+from ise26.targets import calculate_monthly_revenue
+```
+
+Metadados da funcao:
+
+- ID da funcao: `F03`
+- Nome da funcao: `calculate_monthly_revenue`
+- Descricao resumida: `Aggregate valid non-canceled order amounts by month in YYYY-MM format.`
+
+Docstring da funcao:
+
+```text
+Aggregate monthly revenue from valid non-canceled orders.
+
+The function ignores rows with invalid order dates, normalizes the status
+field to detect canceled orders, treats invalid or missing amounts as zero,
+and returns the monthly totals in ``YYYY-MM`` format using a stable string
+column even when the result is empty.
+
+Args:
+    df: Source DataFrame with order information.
+    date_col: Column containing the order date.
+    amount_col: Column containing the monetary amount.
+    status_col: Column containing the order status.
+
+Returns:
+    A DataFrame with columns ``month`` and ``revenue`` sorted by month.
+```
+
+Comportamento esperado:
+
+`Return a DataFrame with month and revenue columns, group by YYYY-MM, ignore canceled statuses in English or Portuguese regardless of case and surrounding spaces, treat invalid or missing amounts as zero, ignore invalid dates, and sort the result by month.`
+
+Codigo da funcao correta:
+
+```python
+def calculate_monthly_revenue(
+    df: pd.DataFrame,
+    date_col: str = "order_date",
+    amount_col: str = "amount",
+    status_col: str = "status",
+) -> pd.DataFrame:
+    """Aggregate monthly revenue from valid non-canceled orders.
+
+    The function ignores rows with invalid order dates, normalizes the status
+    field to detect canceled orders, treats invalid or missing amounts as zero,
+    and returns the monthly totals in ``YYYY-MM`` format using a stable string
+    column even when the result is empty.
+
+    Args:
+        df: Source DataFrame with order information.
+        date_col: Column containing the order date.
+        amount_col: Column containing the monetary amount.
+        status_col: Column containing the order status.
+
+    Returns:
+        A DataFrame with columns ``month`` and ``revenue`` sorted by month.
+    """
+
+    result = _clone_dataframe(df)
+    _ensure_columns_present(result, [date_col, amount_col, status_col], "calculate_monthly_revenue")
+    parsed_dates = pd.to_datetime(result[date_col], errors="coerce", format="mixed")
+    normalized_status = result[status_col].apply(_normalize_status_text)
+    normalized_amounts = pd.to_numeric(result[amount_col], errors="coerce").fillna(0)
+    cancelled_statuses = {"cancelled", "canceled", "cancelado"}
+
+    valid_mask = parsed_dates.notna() & ~normalized_status.isin(cancelled_statuses)
+
+    if not valid_mask.any():
+        return pd.DataFrame(
+            {
+                "month": pd.Series(dtype="string"),
+                "revenue": pd.Series(dtype="float64"),
+            }
+        )
+
+    filtered = pd.DataFrame(
+        {
+            "month": parsed_dates[valid_mask].dt.strftime("%Y-%m").astype("string"),
+            "revenue": normalized_amounts[valid_mask],
+        }
+    )
+
+    monthly_revenue = filtered.groupby("month", as_index=False)["revenue"].sum().sort_values(
+        "month",
+        kind="stable",
+    )
+
+    monthly_revenue["month"] = monthly_revenue["month"].astype("string")
+    monthly_revenue["revenue"] = monthly_revenue["revenue"].astype(float)
+
+    return monthly_revenue.reset_index(drop=True)
+```

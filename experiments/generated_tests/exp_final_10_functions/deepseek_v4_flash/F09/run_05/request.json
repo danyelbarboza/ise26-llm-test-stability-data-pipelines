@@ -1,0 +1,22 @@
+{
+  "provider": "DeepSeek",
+  "base_url": "https://api.deepseek.com",
+  "model": "deepseek-v4-flash",
+  "messages": [
+    {
+      "role": "system",
+      "content": "You generate pytest suites for Python data-transformation functions. Return only valid Python code for the test file and do not include Markdown fences."
+    },
+    {
+      "role": "user",
+      "content": "# Template oficial de geracao de testes do ISE26\n\nGere uma suite de testes em `pytest` para a funcao Python descrita abaixo.\n\nRequisitos obrigatorios:\n\n- importe a funcao somente a partir de `ise26.targets`;\n- use `pytest`;\n- nao altere, nao reimplemente e nao envolva a funcao original;\n- nao use API externa, arquivos externos, rede, banco de dados ou recursos fora do proprio teste;\n- crie os `DataFrame`s sinteticos necessarios dentro do proprio arquivo de teste;\n- nao mencione nem incentive `tests/fixtures.py`;\n- cubra casos comuns e casos de borda;\n- quando o contrato documentar dtype, nulos, ordenacao, arredondamento ou convencao estatistica, verifique isso exatamente como descrito;\n- verifique comportamento por meio de valores retornados e estruturas produzidas pela funcao;\n- retorne apenas codigo Python do arquivo de teste;\n- nao inclua cercas Markdown;\n- nao inclua explicacoes fora do codigo.\n\nImportacao esperada:\n\n```python\nfrom ise26.targets import cap_outliers_iqr\n```\n\nMetadados da funcao:\n\n- ID da funcao: `F09`\n- Nome da funcao: `cap_outliers_iqr`\n- Descricao resumida: `Cap numeric outliers using the interquartile range without mutating the original values.`\n\nDocstring da funcao:\n\n```text\nCap numeric outliers using the IQR rule without mutating the input.\n\nMissing or invalid values stay missing in the capped output column. The\noriginal numeric column is preserved unchanged. Quantiles are computed with\nlinear interpolation, and when fewer than two numeric values are available\nthe function returns the original numeric values unchanged.\n\nArgs:\n    df: Source DataFrame with the numeric values to cap.\n    value_col: Column containing the original values.\n    output_col: Name of the capped output column.\n\nReturns:\n    A new DataFrame with an additional capped numeric column.\n```\n\nComportamento esperado:\n\n`Compute Q1 and Q3 from the valid numeric values, derive lower and upper IQR bounds using linear interpolation, cap values outside those limits into a new output column, and keep invalid or missing values as missing.`\n\nCodigo da funcao correta:\n\n```python\ndef cap_outliers_iqr(\n    df: pd.DataFrame,\n    value_col: str = \"amount\",\n    output_col: str = \"amount_capped\",\n) -> pd.DataFrame:\n    \"\"\"Cap numeric outliers using the IQR rule without mutating the input.\n\n    Missing or invalid values stay missing in the capped output column. The\n    original numeric column is preserved unchanged. Quantiles are computed with\n    linear interpolation, and when fewer than two numeric values are available\n    the function returns the original numeric values unchanged.\n\n    Args:\n        df: Source DataFrame with the numeric values to cap.\n        value_col: Column containing the original values.\n        output_col: Name of the capped output column.\n\n    Returns:\n        A new DataFrame with an additional capped numeric column.\n    \"\"\"\n\n    result = _clone_dataframe(df)\n    _ensure_columns_present(result, [value_col], \"cap_outliers_iqr\")\n    numeric_values = pd.to_numeric(result[value_col], errors=\"coerce\")\n    valid_values = numeric_values.dropna()\n\n    if len(valid_values) < 2:\n        result[output_col] = pd.Series(numeric_values, index=result.index, dtype=\"Float64\")\n        return result\n\n    q1 = float(valid_values.quantile(0.25, interpolation=\"linear\"))\n    q3 = float(valid_values.quantile(0.75, interpolation=\"linear\"))\n    iqr = q3 - q1\n    lower_bound = q1 - 1.5 * iqr\n    upper_bound = q3 + 1.5 * iqr\n\n    capped_values = [\n        pd.NA\n        if pd.isna(value)\n        else float(min(max(float(value), lower_bound), upper_bound))\n        for value in numeric_values\n    ]\n    result[output_col] = pd.Series(capped_values, index=result.index, dtype=\"Float64\")\n    return result\n```\n"
+    }
+  ],
+  "parameters": {
+    "temperature": 0.7,
+    "top_p": 1.0,
+    "max_tokens": 4096,
+    "stream": false,
+    "history_policy": "no_history_between_calls"
+  }
+}

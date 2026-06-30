@@ -1,4 +1,188 @@
-"""Placeholder file created by the LLM generation infrastructure."""
+import pandas as pd
+import numpy as np
+from ise26.targets import standardize_currency_values
 
-# Generation status: placeholder
-# GENERATED_TEST_PLACEHOLDER
+
+def test_valid_brazilian_format():
+    """R$ with dot as thousands separator and comma as decimal."""
+    df = pd.DataFrame({"amount_raw": ["R$ 1.234,56"]})
+    result = standardize_currency_values(df)
+    assert result["amount"].iloc[0] == 1234.56
+    assert result["amount"].dtype == "Float64"
+
+
+def test_valid_english_format():
+    """Comma as thousands separator and dot as decimal."""
+    df = pd.DataFrame({"amount_raw": ["1,234.56"]})
+    result = standardize_currency_values(df)
+    assert result["amount"].iloc[0] == 1234.56
+    assert result["amount"].dtype == "Float64"
+
+
+def test_integer_value():
+    """Integer without decimal part."""
+    df = pd.DataFrame({"amount_raw": ["R$ 1.000"]})
+    result = standardize_currency_values(df)
+    assert result["amount"].iloc[0] == 1000.0
+
+
+def test_decimal_only():
+    """Value with only decimal part."""
+    df = pd.DataFrame({"amount_raw": ["0,99"]})
+    result = standardize_currency_values(df)
+    assert result["amount"].iloc[0] == 0.99
+
+
+def test_simple_decimal():
+    """English decimal without thousands."""
+    df = pd.DataFrame({"amount_raw": ["12.34"]})
+    result = standardize_currency_values(df)
+    assert result["amount"].iloc[0] == 12.34
+
+
+def test_brazilian_no_thousands():
+    """R$ with comma decimal only."""
+    df = pd.DataFrame({"amount_raw": ["R$ 5,50"]})
+    result = standardize_currency_values(df)
+    assert result["amount"].iloc[0] == 5.50
+
+
+def test_leading_trailing_whitespace():
+    """Spaces around the value are ignored."""
+    df = pd.DataFrame({"amount_raw": ["  R$ 100,00  "]})
+    result = standardize_currency_values(df)
+    assert result["amount"].iloc[0] == 100.00
+
+
+def test_r_prefix_without_space():
+    """R$ immediately followed by number."""
+    df = pd.DataFrame({"amount_raw": ["R$100,00"]})
+    result = standardize_currency_values(df)
+    assert result["amount"].iloc[0] == 100.00
+
+
+def test_multiple_whitespace_inside():
+    """Extra spaces inside are collapsed."""
+    df = pd.DataFrame({"amount_raw": ["R$   1.000,99"]})
+    result = standardize_currency_values(df)
+    assert result["amount"].iloc[0] == 1000.99
+
+
+def test_invalid_value_becomes_na():
+    """Non-parseable string results in pd.NA."""
+    df = pd.DataFrame({"amount_raw": ["abc"]})
+    result = standardize_currency_values(df)
+    assert result["amount"].iloc[0] is pd.NA
+
+
+def test_empty_string_becomes_na():
+    """Empty string treated as NA."""
+    df = pd.DataFrame({"amount_raw": [""]})
+    result = standardize_currency_values(df)
+    assert result["amount"].iloc[0] is pd.NA
+
+
+def test_none_value_becomes_na():
+    """None value becomes NA."""
+    df = pd.DataFrame({"amount_raw": [None]})
+    result = standardize_currency_values(df)
+    assert result["amount"].iloc[0] is pd.NA
+
+
+def test_nan_value_becomes_na():
+    """NaN float becomes NA (if originally float)."""
+    df = pd.DataFrame({"amount_raw": [np.nan]})
+    result = standardize_currency_values(df)
+    assert result["amount"].iloc[0] is pd.NA
+
+
+def test_multiple_valid_values():
+    """Mixed valid formats produce correct values."""
+    df = pd.DataFrame({"amount_raw": ["R$ 1.000,00", "2,500.50", "0,01", "10"]})
+    result = standardize_currency_values(df)
+    expected = [1000.00, 2500.50, 0.01, 10.0]
+    for i, val in enumerate(expected):
+        assert result["amount"].iloc[i] == val
+
+
+def test_mixed_valid_and_invalid():
+    """Valid and invalid values; invalid become NA."""
+    df = pd.DataFrame({"amount_raw": ["R$ 100,50", "invalid", "200.00"]})
+    result = standardize_currency_values(df)
+    assert result["amount"].iloc[0] == 100.50
+    assert result["amount"].iloc[1] is pd.NA
+    assert result["amount"].iloc[2] == 200.00
+
+
+def test_preserves_original_column():
+    """Original column is not modified."""
+    df = pd.DataFrame({"amount_raw": ["R$ 1.234,56"]})
+    original_raw = df["amount_raw"].iloc[0]
+    result = standardize_currency_values(df)
+    # Check that original column in result is same as input
+    assert result["amount_raw"].iloc[0] == original_raw
+    # Also ensure the original df is not mutated
+    assert df["amount_raw"].iloc[0] == original_raw
+
+
+def test_custom_column_names():
+    """Use non-default column parameters."""
+    df = pd.DataFrame({"my_raw": ["1.234,56"]})
+    result = standardize_currency_values(df, value_col="my_raw", output_col="my_amount")
+    assert "my_amount" in result.columns
+    assert "amount" not in result.columns
+    assert result["my_amount"].iloc[0] == 1234.56
+
+
+def test_output_column_dtype():
+    """Output column must be Float64 (nullable)."""
+    df = pd.DataFrame({"amount_raw": ["100,00"]})
+    result = standardize_currency_values(df)
+    assert result["amount"].dtype == pd.Float64Dtype()
+
+
+def test_dataframe_not_modified_in_place():
+    """Return is a new DataFrame."""
+    df = pd.DataFrame({"amount_raw": ["R$ 1.000,00"]})
+    df_copy = df.copy()
+    result = standardize_currency_values(df)
+    # Original df should be unchanged
+    assert df.equals(df_copy)
+    # Result is a different object
+    assert result is not df
+
+
+def test_zero_value():
+    """Zero is valid."""
+    df = pd.DataFrame({"amount_raw": ["R$ 0,00"]})
+    result = standardize_currency_values(df)
+    assert result["amount"].iloc[0] == 0.0
+
+
+def test_large_number():
+    """Large numbers parsed correctly."""
+    df = pd.DataFrame({"amount_raw": ["R$ 9.999.999.999,99"]})
+    result = standardize_currency_values(df)
+    assert result["amount"].iloc[0] == 9999999999.99
+
+
+def test_english_with_thousands_and_decimal():
+    """Typical English format with both separators."""
+    df = pd.DataFrame({"amount_raw": ["1,234,567.89"]})
+    result = standardize_currency_values(df)
+    assert result["amount"].iloc[0] == 1234567.89
+
+
+def test_brazilian_without_thousands():
+    """Brazilian without thousands separators."""
+    df = pd.DataFrame({"amount_raw": ["R$ 1234,56"]})
+    result = standardize_currency_values(df)
+    assert result["amount"].iloc[0] == 1234.56
+
+
+def test_negative_value_not_supported():
+    """Negative monetary amounts are not parseable -> NA."""
+    df = pd.DataFrame({"amount_raw": ["-100,00", "R$ -100,00", "-100.00"]})
+    result = standardize_currency_values(df)
+    for i in range(len(df)):
+        assert result["amount"].iloc[i] is pd.NA

@@ -1,0 +1,169 @@
+```python
+import pytest
+import pandas as pd
+from pandas.api.types import is_float_dtype
+from ise26.targets import standardize_currency_values
+
+
+# --- Basic parsing tests ---
+
+def test_brazilian_format():
+    df = pd.DataFrame({"amount_raw": ["R$ 1.234,56", "R$ 0,10"]})
+    result = standardize_currency_values(df)
+    expected = pd.Series([1234.56, 0.10], name="amount", dtype="Float64")
+    pd.testing.assert_series_equal(
+        result["amount"].reset_index(drop=True),
+        expected.reset_index(drop=True),
+    )
+
+
+def test_english_format():
+    df = pd.DataFrame({"amount_raw": ["1,234.56", "0.10"]})
+    result = standardize_currency_values(df)
+    expected = pd.Series([1234.56, 0.10], name="amount", dtype="Float64")
+    pd.testing.assert_series_equal(
+        result["amount"].reset_index(drop=True),
+        expected.reset_index(drop=True),
+    )
+
+
+def test_r_prefix_removed():
+    df = pd.DataFrame({"amount_raw": ["R$ 100.00", "R$100.00"]})
+    result = standardize_currency_values(df)
+    expected = pd.Series([100.0, 100.0], name="amount", dtype="Float64")
+    pd.testing.assert_series_equal(
+        result["amount"].reset_index(drop=True),
+        expected.reset_index(drop=True),
+    )
+
+
+def test_removes_whitespace():
+    df = pd.DataFrame({"amount_raw": ["  R$  5.432,10  ", "R$  \t 10,000.00\n"]})
+    result = standardize_currency_values(df)
+    expected = pd.Series([5432.10, 10000.00], name="amount", dtype="Float64")
+    pd.testing.assert_series_equal(
+        result["amount"].reset_index(drop=True),
+        expected.reset_index(drop=True),
+    )
+
+
+# --- Invalid/missing values ---
+
+def test_invalid_string_becomes_na():
+    df = pd.DataFrame({"amount_raw": ["abc", "R$ XYZ", "", None, float("nan")]})
+    result = standardize_currency_values(df)
+    assert result["amount"].isna().all()
+    # check that all are pd.NA exactly (nullable boolean gives pd.NA)
+    for val in result["amount"]:
+        assert val is pd.NA
+
+
+def test_empty_dataframe():
+    df = pd.DataFrame({"amount_raw": []})
+    result = standardize_currency_values(df)
+    assert result.empty
+    assert "amount" in result.columns
+    assert result["amount"].dtype == "Float64"
+
+
+def test_mixed_valid_invalid():
+    df = pd.DataFrame({"amount_raw": ["R$ 100.00", "not_a_value", None, "R$ 200,50"]})
+    result = standardize_currency_values(df)
+    expected = pd.Series([100.0, pd.NA, pd.NA, 200.50], name="amount", dtype="Float64")
+    pd.testing.assert_series_equal(
+        result["amount"].reset_index(drop=True),
+        expected.reset_index(drop=True),
+    )
+
+
+# --- Preservation and immutability ---
+
+def test_preserves_raw_column():
+    df = pd.DataFrame({"amount_raw": ["R$ 99.99"]})
+    original_raw = df["amount_raw"].copy()
+    result = standardize_currency_values(df)
+    pd.testing.assert_series_equal(result["amount_raw"], original_raw)
+    # ensure original df unchanged
+    pd.testing.assert_series_equal(df["amount_raw"], original_raw)
+
+
+def test_does_not_mutate_input():
+    df = pd.DataFrame({"amount_raw": ["R$ 50.00"]})
+    df_original = df.copy()
+    _ = standardize_currency_values(df)
+    pd.testing.assert_frame_equal(df, df_original)
+
+
+def test_returns_new_dataframe():
+    df = pd.DataFrame({"amount_raw": ["R$ 1.00"]})
+    result = standardize_currency_values(df)
+    assert result is not df
+
+
+def test_index_preserved():
+    df = pd.DataFrame({"amount_raw": ["R$ 1.00", "R$ 2.00"]}, index=[10, 20])
+    result = standardize_currency_values(df)
+    pd.testing.assert_index_equal(result.index, pd.Index([10, 20]))
+
+
+# --- Output column and dtype ---
+
+def test_default_output_column_name():
+    df = pd.DataFrame({"amount_raw": ["R$ 1.00"]})
+    result = standardize_currency_values(df)
+    assert "amount" in result.columns
+
+
+def test_custom_output_column_name():
+    df = pd.DataFrame({"amount_raw": ["R$ 3.14"]})
+    result = standardize_currency_values(df, value_col="amount_raw", output_col="valor")
+    assert "valor" in result.columns
+    assert "amount" not in result.columns
+    assert result["valor"].iloc[0] == 3.14
+
+
+def test_output_dtype_is_nullable_float64():
+    df = pd.DataFrame({"amount_raw": ["R$ 1.23"]})
+    result = standardize_currency_values(df)
+    assert str(result["amount"].dtype) == "Float64"
+    assert is_float_dtype(result["amount"])
+
+
+# --- Error cases ---
+
+def test_missing_value_col_raises():
+    df = pd.DataFrame({"wrong_column": ["R$ 1.00"]})
+    with pytest.raises(KeyError):  # _ensure_columns_present likely raises KeyError
+        standardize_currency_values(df, value_col="amount_raw")
+
+
+# --- Edge cases ---
+
+def test_negative_amounts():
+    df = pd.DataFrame({"amount_raw": ["R$ -100.00", "-R$ 50,00"]})
+    result = standardize_currency_values(df)
+    expected = pd.Series([-100.0, -50.0], name="amount", dtype="Float64")
+    pd.testing.assert_series_equal(
+        result["amount"].reset_index(drop=True),
+        expected.reset_index(drop=True),
+    )
+
+
+def test_no_decimal_part():
+    df = pd.DataFrame({"amount_raw": ["R$ 42", "R$ 100"]})
+    result = standardize_currency_values(df)
+    expected = pd.Series([42.0, 100.0], name="amount", dtype="Float64")
+    pd.testing.assert_series_equal(
+        result["amount"].reset_index(drop=True),
+        expected.reset_index(drop=True),
+    )
+
+
+def test_numeric_input_becomes_na():
+    # numeric values are not valid text currency strings, expect pd.NA
+    df = pd.DataFrame({"amount_raw": [123.45, 100]})
+    result = standardize_currency_values(df)
+    assert result["amount"].isna().all()
+    for val in result["amount"]:
+        assert val is pd.NA
+```

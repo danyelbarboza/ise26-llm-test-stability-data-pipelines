@@ -1,0 +1,180 @@
+```python
+import pytest
+import pandas as pd
+import numpy as np
+from ise26.targets import deduplicate_events
+
+
+def test_basic_deduplication():
+    """Keep most recent row per event_id, dropping older duplicates."""
+    df = pd.DataFrame({
+        'event_id': ['A', 'A', 'A', 'B', 'B'],
+        'updated_at': ['2023-01-01', '2023-01-03', '2023-01-02', '2023-01-01', '2023-01-02'],
+        'value': [1, 2, 3, 4, 5]
+    })
+    expected = pd.DataFrame({
+        'event_id': ['A', 'B'],
+        'updated_at': ['2023-01-03', '2023-01-02'],
+        'value': [2, 5]
+    }, index=[0, 1])
+    result = deduplicate_events(df)
+    # Ensure result is as expected (order might differ due to original order sorting, 
+    # but B's timestamp is later, so both kept. But after dedup, rows are sorted by original order?
+    # Actually function drops duplicates and sorts by original order. For A: last occurrence is row index 1 (value 2, timestamp 2023-01-03). For B: last occurrence is row index 4 (value 5, timestamp 2023-01-02). 
+    # The original order of these kept rows: A at index 1, B at index 4 -> resulting order A then B.
+    expected_sorted = expected.sort_values('updated_at')  # not needed, just compare rows
+    pd.testing.assert_frame_equal(result, expected)
+    # Also ensure types
+    assert result['event_id'].dtype == object
+    assert result['updated_at'].dtype == object
+
+
+def test_null_ids_preserved():
+    """Rows with null event_id are never removed."""
+    df = pd.DataFrame({
+        'event_id': [None, None, 'A', 'A', None],
+        'updated_at': ['2023-01-01', '2023-01-02', '2023-01-01', '2023-01-02', '2023-01-03'],
+        'value': [1, 2, 3, 4, 5]
+    })
+    result = deduplicate_events(df)
+    # Null rows: 0,1,4 should all appear (5 rows originally, but duplication of A: keep last A at index 3)
+    # So total rows = 3 null rows + 1 non-null deduped = 4 rows
+    assert len(result) == 4
+    # Check that all null ids are present
+    null_rows = result[result['event_id'].isna()]
+    assert len(null_rows) == 3
+    # Non-null only A, value 4
+    non_null = result[result['event_id'].notna()]
+    assert len(non_null) == 1
+    assert non_null.iloc[0]['value'] == 4
+
+
+def test_invalid_timestamps_treated_as_old():
+    """Invalid timestamps (NaT) are treated as older than valid ones, so valid rows are kept."""
+    df = pd.DataFrame({
+        'event_id': ['X', 'X', 'X'],
+        'updated_at': ['not_a_date', '2023-01-02', 'also_invalid'],
+        'value': [10, 20, 30]
+    })
+    result = deduplicate_events(df)
+    # Only one row kept for X: the one with valid timestamp (index 1, value 20)
+    assert len(result) == 1
+    assert result.iloc[0]['value'] == 20
+    # Also check that invalid timestamps are not causing errors and result column dtype is preserved
+    assert result['updated_at'].dtype == object
+
+
+def test_timestamp_ties_keep_last():
+    """When timestamps tie, keep the last row in original order."""
+    df = pd.DataFrame({
+        'event_id': ['Y', 'Y', 'Y'],
+        'updated_at': ['2023-01-01', '2023-01-01', '2023-01-01'],
+        'value': [100, 200, 300]
+    })
+    result = deduplicate_events(df)
+    # All same timestamp, keep last row (index 2, value 300)
+    assert len(result) == 1
+    assert result.iloc[0]['value'] == 300
+
+
+def test_configurable_columns():
+    """Different column names for id and timestamp."""
+    df = pd.DataFrame({
+        'my_id': [1, 1, 2],
+        'my_ts': ['2023-01-01', '2023-01-02', '2023-01-01'],
+        'data': ['a', 'b', 'c']
+    })
+    result = deduplicate_events(df, id_col='my_id', timestamp_col='my_ts')
+    # Expect: duplicates for id=1: keep row with later timestamp (index 1)
+    # id=2 only one row
+    expected = pd.DataFrame({
+        'my_id': [1, 2],
+        'my_ts': ['2023-01-02', '2023-01-01'],
+        'data': ['b', 'c']
+    }, index=[0, 1])
+    pd.testing.assert_frame_equal(result, expected)
+
+
+def test_input_not_mutated():
+    """Original DataFrame remains unchanged after function call."""
+    df = pd.DataFrame({
+        'event_id': ['A', 'A'],
+        'updated_at': ['2023-01-01', '2023-01-02'],
+        'value': [10, 20]
+    })
+    original = df.copy()
+    deduplicate_events(df)
+    pd.testing.assert_frame_equal(df, original)
+
+
+def test_empty_dataframe():
+    """Empty DataFrame returns empty DataFrame."""
+    df = pd.DataFrame({'event_id': pd.Series(dtype=object), 'updated_at': pd.Series(dtype=object), 'value': pd.Series(dtype=object)})
+    result = deduplicate_events(df)
+    assert len(result) == 0
+    assert isinstance(result, pd.DataFrame)
+
+
+def test_single_row():
+    """Single row is preserved."""
+    df = pd.DataFrame({'event_id': ['A'], 'updated_at': ['2023-01-01'], 'value': [1]})
+    result = deduplicate_events(df)
+    pd.testing.assert_frame_equal(result, df)
+
+
+def test_all_same_id_mixed_timestamps():
+    """Multiple rows with same ID, combination of valid, invalid, ties."""
+    df = pd.DataFrame({
+        'event_id': ['Z'] * 5,
+        'updated_at': ['invalid', '2023-01-01', 'invalid', '2023-01-01', '2023-01-02'],
+        'value': [1, 2, 3, 4, 5]
+    })
+    # Valid timestamps: index1 (2023-01-01), index3 (2023-01-01), index4 (2023-01-02)
+    # Ties: index1 and index3 have same timestamp; keep last (index3, value 4)
+    # However, index4 has later timestamp, so the most recent is index4 (value 5)
+    # Since index4 is latest, keep that.
+    result = deduplicate_events(df)
+    assert len(result) == 1
+    assert result.iloc[0]['value'] == 5
+    # Also ensure invalid rows are treated as older and not kept
+
+
+def test_mixed_null_and_non_null_ids():
+    """Combination of null and non-null ids with various timestamps."""
+    df = pd.DataFrame({
+        'event_id': [None, 'A', None, 'A', 'B', None],
+        'updated_at': ['2023-01-01', '2023-01-02', '2023-01-03', '2023-01-01', '2023-01-01', '2023-01-02'],
+        'value': [1, 2, 3, 4, 5, 6]
+    })
+    result = deduplicate_events(df)
+    # Null rows: indices 0,2,5 -> all kept (3 rows)
+    # A: duplicates at indices 1 and 3. Compare timestamps: index1 (2023-01-02) vs index3 (2023-01-01) -> keep index1 (value 2)
+    # B: single row at index4 (value 5)
+    # Total expected rows: 3 (null) + 1 (A) + 1 (B) = 5 rows
+    assert len(result) == 5
+    # Check A value
+    a_row = result[result['event_id'] == 'A']
+    assert a_row.iloc[0]['value'] == 2
+    # Check null rows values in original order (should be sorted by original order)
+    null_values = result[result['event_id'].isna()]['value'].tolist()
+    assert null_values == [1, 3, 6]
+    # Check B value
+    b_row = result[result['event_id'] == 'B']
+    assert b_row.iloc[0]['value'] == 5
+
+
+def test_preserves_data_types_and_index():
+    """Result should have reset index and original columns."""
+    df = pd.DataFrame({
+        'event_id': ['A', 'A'],
+        'updated_at': ['2023-01-01', '2023-01-02'],
+        'value': [1.5, 2.5]
+    })
+    result = deduplicate_events(df)
+    # Should not have extra columns
+    assert list(result.columns) == ['event_id', 'updated_at', 'value']
+    # Index should be RangeIndex starting at 0
+    assert isinstance(result.index, pd.RangeIndex)
+    # Dtype of value should be float64 (as in input)
+    assert result['value'].dtype == np.float64
+```

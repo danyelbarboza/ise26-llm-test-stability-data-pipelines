@@ -1,4 +1,122 @@
-"""Placeholder file created by the LLM generation infrastructure."""
+import pandas as pd
+import pytest
+from ise26.targets import standardize_currency_values
 
-# Generation status: placeholder
-# GENERATED_TEST_PLACEHOLDER
+
+def test_standardize_currency_values_basic_brazilian_format():
+    """Comma decimal with dot as thousand separator."""
+    df = pd.DataFrame({"amount_raw": ["1.234,56", "0,99", "12.345,67"]})
+    result = standardize_currency_values(df)
+    expected = pd.Series([1234.56, 0.99, 12345.67], dtype="Float64", name="amount")
+    pd.testing.assert_series_equal(result["amount"], expected)
+
+
+def test_standardize_currency_values_basic_english_format():
+    """Dot decimal, no thousand separator."""
+    df = pd.DataFrame({"amount_raw": ["1234.56", "0.99", "12.345.67"]})
+    result = standardize_currency_values(df)
+    expected = pd.Series([1234.56, 0.99, 12345.67], dtype="Float64", name="amount")
+    pd.testing.assert_series_equal(result["amount"], expected)
+
+
+def test_standardize_currency_values_with_r_prefix_and_whitespace():
+    """R$ prefix with optional spacing."""
+    df = pd.DataFrame({"amount_raw": ["R$ 1.234,56", "  R$ 1234.56  ", "R$0,99"]})
+    result = standardize_currency_values(df)
+    expected = pd.Series([1234.56, 1234.56, 0.99], dtype="Float64", name="amount")
+    pd.testing.assert_series_equal(result["amount"], expected)
+
+
+def test_standardize_currency_values_invalid_strings():
+    """Invalid strings should become NA."""
+    df = pd.DataFrame({"amount_raw": ["abc", "12.34.56", "", " ", "R$ abc"]})
+    result = standardize_currency_values(df)
+    expected = pd.Series([pd.NA, pd.NA, pd.NA, pd.NA, pd.NA], dtype="Float64")
+    pd.testing.assert_series_equal(result["amount"], expected)
+
+
+def test_standardize_currency_values_mixed_valid_invalid():
+    """Mix of valid and invalid values."""
+    df = pd.DataFrame({"amount_raw": ["1.234,56", "invalid", "R$ 0,00", None]})
+    result = standardize_currency_values(df)
+    expected = pd.Series([1234.56, pd.NA, 0.00, pd.NA], dtype="Float64")
+    pd.testing.assert_series_equal(result["amount"], expected)
+
+
+def test_standardize_currency_values_none_and_nan_input():
+    """None and NaN in input become NA."""
+    df = pd.DataFrame({"amount_raw": [None, float("nan"), "1.234,56"]})
+    result = standardize_currency_values(df)
+    expected = pd.Series([pd.NA, pd.NA, 1234.56], dtype="Float64")
+    pd.testing.assert_series_equal(result["amount"], expected)
+
+
+def test_standardize_currency_values_preserves_original_column():
+    """Original raw column remains unchanged."""
+    df = pd.DataFrame({"amount_raw": ["1,23", "4.56"]})
+    original_raw = df["amount_raw"].copy()
+    result = standardize_currency_values(df)
+    pd.testing.assert_series_equal(result["amount_raw"], original_raw)
+
+
+def test_standardize_currency_values_returns_new_dataframe():
+    """Function returns a new DataFrame, not the same object."""
+    df = pd.DataFrame({"amount_raw": ["1,23"]})
+    result = standardize_currency_values(df)
+    assert result is not df
+
+
+def test_standardize_currency_values_output_dtype():
+    """Output column must be nullable Float64."""
+    df = pd.DataFrame({"amount_raw": ["1,23", "invalid"]})
+    result = standardize_currency_values(df)
+    assert result["amount"].dtype == "Float64"
+
+
+def test_standardize_currency_values_custom_column_names():
+    """Custom value_col and output_col work."""
+    df = pd.DataFrame({"raw_col": ["R$ 1.234,56", "0,99"]})
+    result = standardize_currency_values(df, value_col="raw_col", output_col="custom_out")
+    expected = pd.Series([1234.56, 0.99], dtype="Float64", name="custom_out")
+    pd.testing.assert_series_equal(result["custom_out"], expected)
+    assert "raw_col" in result.columns
+
+
+def test_standardize_currency_values_edge_cases():
+    """Edge cases: zero, small fractions, multiple separators."""
+    df = pd.DataFrame({
+        "amount_raw": [
+            "R$ 0,00",
+            "0.00",
+            "R$ 0.00",
+            "0,001",
+            ",99",     # leading comma (invalid pattern?)
+            ".99"      # leading dot  (English valid float start)
+        ]
+    })
+    result = standardize_currency_values(df)
+    # .99 is valid as 0.99 in standard float parsing
+    # ,99 is typically invalid because it starts with comma
+    expected = pd.Series(
+        [0.00, 0.00, 0.00, 0.001, pd.NA, 0.99],
+        dtype="Float64"
+    )
+    pd.testing.assert_series_equal(result["amount"], expected)
+
+
+def test_standardize_currency_values_single_row():
+    """Single row works correctly."""
+    df = pd.DataFrame({"amount_raw": ["1.234,56"]})
+    result = standardize_currency_values(df)
+    expected = pd.Series([1234.56], dtype="Float64", name="amount")
+    pd.testing.assert_series_equal(result["amount"], expected)
+
+
+def test_standardize_currency_values_empty_dataframe():
+    """Empty DataFrame returns empty output column."""
+    df = pd.DataFrame({"amount_raw": pd.Series(dtype="object")})
+    result = standardize_currency_values(df)
+    assert len(result) == 0
+    assert "amount" in result.columns
+    assert result["amount"].dtype == "Float64"
+    assert result["amount"].isna().all()

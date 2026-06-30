@@ -1,4 +1,205 @@
-"""Placeholder file created by the LLM generation infrastructure."""
+import pytest
+import pandas as pd
+from ise26.targets import calculate_conversion_rate
 
-# Generation status: placeholder
-# GENERATED_TEST_PLACEHOLDER
+
+class TestCalculateConversionRate:
+    """Test suite for calculate_conversion_rate."""
+
+    def test_normal_aggregation(self):
+        """Basic aggregation with valid data."""
+        df = pd.DataFrame({
+            "channel": ["email", "social", "email", "search"],
+            "visits": [100, 200, 150, 300],
+            "conversions": [10, 30, 15, 45],
+        })
+        result = calculate_conversion_rate(df)
+        # Expected: email: visits=250, conversions=25, rate=0.1
+        # social: visits=200, conversions=30, rate=0.15
+        # search: visits=300, conversions=45, rate=0.15
+        expected = pd.DataFrame({
+            "channel": ["email", "search", "social"],
+            "visits": [250.0, 300.0, 200.0],
+            "conversions": [25.0, 45.0, 30.0],
+            "conversion_rate": [0.1, 0.15, 0.15],
+        })
+        pd.testing.assert_frame_equal(result, expected)
+
+    def test_missing_channel_becomes_unknown(self):
+        """Null or blank channels should be normalized to 'unknown'."""
+        df = pd.DataFrame({
+            "channel": ["email", None, "  ", "search"],
+            "visits": [100, 200, 150, 300],
+            "conversions": [10, 30, 15, 45],
+        })
+        result = calculate_conversion_rate(df)
+        # Expect one row for 'email', one for 'search', one for 'unknown'
+        # unknown should aggregate None and '  '
+        # visits: 200+150=350, conversions:30+15=45, rate = 45/350 ≈0.128571
+        expected = pd.DataFrame({
+            "channel": ["email", "search", "unknown"],
+            "visits": [100.0, 300.0, 350.0],
+            "conversions": [10.0, 45.0, 45.0],
+            "conversion_rate": [0.1, 0.15, 45.0/350.0],
+        })
+        pd.testing.assert_frame_equal(result, expected)
+
+    def test_invalid_numeric_treated_as_zero(self):
+        """Non-numeric or NaN in visits/conversions should be treated as 0."""
+        df = pd.DataFrame({
+            "channel": ["email", "social"],
+            "visits": ["abc", None],
+            "conversions": [10, "xyz"],
+        })
+        result = calculate_conversion_rate(df)
+        # email: visits=0, conversions=10 => rate 0 (visits==0)
+        # social: visits=0, conversions=0 => rate 0
+        expected = pd.DataFrame({
+            "channel": ["email", "social"],
+            "visits": [0.0, 0.0],
+            "conversions": [10.0, 0.0],
+            "conversion_rate": [0.0, 0.0],
+        })
+        pd.testing.assert_frame_equal(result, expected)
+
+    def test_zero_visits_gives_zero_rate(self):
+        """When visits are zero, conversion_rate must be 0.0."""
+        df = pd.DataFrame({
+            "channel": ["email", "social"],
+            "visits": [0, 100],
+            "conversions": [5, 10],
+        })
+        result = calculate_conversion_rate(df)
+        expected = pd.DataFrame({
+            "channel": ["email", "social"],
+            "visits": [0.0, 100.0],
+            "conversions": [5.0, 10.0],
+            "conversion_rate": [0.0, 0.1],
+        })
+        pd.testing.assert_frame_equal(result, expected)
+
+    def test_all_channels_unknown(self):
+        """When all channels are missing, single 'unknown' row."""
+        df = pd.DataFrame({
+            "channel": [None, None],
+            "visits": [10, 20],
+            "conversions": [1, 2],
+        })
+        result = calculate_conversion_rate(df)
+        expected = pd.DataFrame({
+            "channel": ["unknown"],
+            "visits": [30.0],
+            "conversions": [3.0],
+            "conversion_rate": [0.1],
+        })
+        pd.testing.assert_frame_equal(result, expected)
+
+    def test_empty_dataframe(self):
+        """Empty input should produce an empty DataFrame with correct columns."""
+        df = pd.DataFrame(columns=["channel", "visits", "conversions"])
+        result = calculate_conversion_rate(df)
+        expected = pd.DataFrame(columns=["channel", "visits", "conversions", "conversion_rate"])
+        pd.testing.assert_frame_equal(result, expected)
+
+    def test_output_column_order(self):
+        """Result must have columns in order: channel, visits, conversions, conversion_rate."""
+        df = pd.DataFrame({
+            "channel": ["email"],
+            "visits": [10],
+            "conversions": [1],
+        })
+        result = calculate_conversion_rate(df)
+        assert list(result.columns) == ["channel", "visits", "conversions", "conversion_rate"]
+
+    def test_dtypes_are_float_for_metrics(self):
+        """visits, conversions, conversion_rate should be float."""
+        df = pd.DataFrame({
+            "channel": ["a", "b"],
+            "visits": [1, 2],
+            "conversions": [0, 1],
+        })
+        result = calculate_conversion_rate(df)
+        assert result["visits"].dtype == float
+        assert result["conversions"].dtype == float
+        assert result["conversion_rate"].dtype == float
+
+    def test_sorting_alphabetically(self):
+        """Rows should be sorted by channel alphabetically."""
+        df = pd.DataFrame({
+            "channel": ["z", "a", "m"],
+            "visits": [10, 20, 30],
+            "conversions": [1, 2, 3],
+        })
+        result = calculate_conversion_rate(df)
+        assert list(result["channel"]) == ["a", "m", "z"]
+
+    def test_original_dataframe_not_mutated(self):
+        """The original DataFrame should remain unchanged."""
+        df = pd.DataFrame({
+            "channel": ["email"],
+            "visits": [10],
+            "conversions": [1],
+        })
+        df_copy = df.copy()
+        calculate_conversion_rate(df)
+        pd.testing.assert_frame_equal(df, df_copy)
+
+    def test_missing_columns_raises_key_error(self):
+        """If required columns are missing, a KeyError should be raised."""
+        df = pd.DataFrame({
+            "wrong": [1],
+        })
+        with pytest.raises(KeyError):
+            calculate_conversion_rate(df)
+
+    def test_custom_group_col(self):
+        """Works with a custom group column name."""
+        df = pd.DataFrame({
+            "source": ["email", "social", "email"],
+            "visits": [100, 200, 150],
+            "conversions": [10, 30, 15],
+        })
+        result = calculate_conversion_rate(df, group_col="source")
+        expected = pd.DataFrame({
+            "source": ["email", "social"],
+            "visits": [250.0, 200.0],
+            "conversions": [25.0, 30.0],
+            "conversion_rate": [0.1, 0.15],
+        })
+        pd.testing.assert_frame_equal(result, expected)
+
+    def test_custom_visits_and_conversions_cols(self):
+        """Works with custom visit and conversion column names."""
+        df = pd.DataFrame({
+            "channel": ["a", "b"],
+            "v": [10, 20],
+            "c": [1, 2],
+        })
+        result = calculate_conversion_rate(df, visits_col="v", conversions_col="c")
+        expected = pd.DataFrame({
+            "channel": ["a", "b"],
+            "visits": [10.0, 20.0],
+            "conversions": [1.0, 2.0],
+            "conversion_rate": [0.1, 0.1],
+        })
+        pd.testing.assert_frame_equal(result, expected)
+
+    def test_mixed_missing_values(self):
+        """Various missing patterns in channel and numeric columns."""
+        df = pd.DataFrame({
+            "channel": ["a", None, "b", "  ", "a"],
+            "visits": [10, None, "x", 5, 0],
+            "conversions": [1, 2, 3, None, "y"],
+        })
+        result = calculate_conversion_rate(df)
+        # aggregates:
+        # a: visits=10+0=10, conversions=1+0=1, rate=0.1
+        # b: visits=0 (invalid "x" -> 0), conversions=3, rate=0.0 (visits==0)
+        # unknown: visits=0+5=5, conversions=2+0=2, rate=0.4
+        expected = pd.DataFrame({
+            "channel": ["a", "b", "unknown"],
+            "visits": [10.0, 0.0, 5.0],
+            "conversions": [1.0, 3.0, 2.0],
+            "conversion_rate": [0.1, 0.0, 0.4],
+        })
+        pd.testing.assert_frame_equal(result, expected)

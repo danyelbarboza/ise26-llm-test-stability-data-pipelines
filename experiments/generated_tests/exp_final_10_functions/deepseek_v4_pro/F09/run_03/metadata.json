@@ -1,0 +1,69 @@
+{
+  "function_id": "F09",
+  "function_name": "cap_outliers_iqr",
+  "run_id": "run_03",
+  "provider": "DeepSeek",
+  "model": "deepseek-v4-pro",
+  "experiment_id": "exp_final_10_functions",
+  "temperature": 0.7,
+  "top_p": 1.0,
+  "max_tokens": 4096,
+  "timestamp_utc": "2026-06-30T18:55:54Z",
+  "prompt_hash": "198d894f97a1303a79ed08b957c8ca804fbe1b447b72f175c6e3e7e02ef4907f",
+  "function_code_hash": "5be1b240011e92362726da1a0a3739838d7d72fd7f14fee219711016acbff879",
+  "correct_module_hash": "97373262a16281d5b85b79a161d69c933f4dbc461a2e2216e0d3c5009b1c4da5",
+  "config_hash": "c0d1a5760629f11457eb311c9457beb29ce861aec310e0c9d4b3251c0860e08c",
+  "response_hash": "7612a5bddc6f055eea6465f82a6fe6675407b9df636e0c65724948617b5e8d49",
+  "syntax_valid": true,
+  "overwrite_used": false,
+  "success": true,
+  "error": null,
+  "usage": {
+    "completion_tokens": 2848,
+    "prompt_tokens": 953,
+    "total_tokens": 3801,
+    "completion_tokens_details": {
+      "accepted_prediction_tokens": null,
+      "audio_tokens": null,
+      "reasoning_tokens": 1032,
+      "rejected_prediction_tokens": null
+    },
+    "prompt_tokens_details": {
+      "audio_tokens": null,
+      "cached_tokens": 896
+    },
+    "prompt_cache_hit_tokens": 896,
+    "prompt_cache_miss_tokens": 57
+  },
+  "generated_by": "LLM-generated pytest suite for the ISE26 experiment",
+  "request_messages": [
+    {
+      "role": "system",
+      "content": "You generate pytest suites for Python data-transformation functions. Return only valid Python code for the test file and do not include Markdown fences."
+    },
+    {
+      "role": "user",
+      "content": "# Template oficial de geracao de testes do ISE26\n\nGere uma suite de testes em `pytest` para a funcao Python descrita abaixo.\n\nRequisitos obrigatorios:\n\n- importe a funcao somente a partir de `ise26.targets`;\n- use `pytest`;\n- nao altere, nao reimplemente e nao envolva a funcao original;\n- nao use API externa, arquivos externos, rede, banco de dados ou recursos fora do proprio teste;\n- crie os `DataFrame`s sinteticos necessarios dentro do proprio arquivo de teste;\n- nao mencione nem incentive `tests/fixtures.py`;\n- cubra casos comuns e casos de borda;\n- quando o contrato documentar dtype, nulos, ordenacao, arredondamento ou convencao estatistica, verifique isso exatamente como descrito;\n- verifique comportamento por meio de valores retornados e estruturas produzidas pela funcao;\n- retorne apenas codigo Python do arquivo de teste;\n- nao inclua cercas Markdown;\n- nao inclua explicacoes fora do codigo.\n\nImportacao esperada:\n\n```python\nfrom ise26.targets import cap_outliers_iqr\n```\n\nMetadados da funcao:\n\n- ID da funcao: `F09`\n- Nome da funcao: `cap_outliers_iqr`\n- Descricao resumida: `Cap numeric outliers using the interquartile range without mutating the original values.`\n\nDocstring da funcao:\n\n```text\nCap numeric outliers using the IQR rule without mutating the input.\n\nMissing or invalid values stay missing in the capped output column. The\noriginal numeric column is preserved unchanged. Quantiles are computed with\nlinear interpolation, and when fewer than two numeric values are available\nthe function returns the original numeric values unchanged.\n\nArgs:\n    df: Source DataFrame with the numeric values to cap.\n    value_col: Column containing the original values.\n    output_col: Name of the capped output column.\n\nReturns:\n    A new DataFrame with an additional capped numeric column.\n```\n\nComportamento esperado:\n\n`Compute Q1 and Q3 from the valid numeric values, derive lower and upper IQR bounds using linear interpolation, cap values outside those limits into a new output column, and keep invalid or missing values as missing.`\n\nCodigo da funcao correta:\n\n```python\ndef cap_outliers_iqr(\n    df: pd.DataFrame,\n    value_col: str = \"amount\",\n    output_col: str = \"amount_capped\",\n) -> pd.DataFrame:\n    \"\"\"Cap numeric outliers using the IQR rule without mutating the input.\n\n    Missing or invalid values stay missing in the capped output column. The\n    original numeric column is preserved unchanged. Quantiles are computed with\n    linear interpolation, and when fewer than two numeric values are available\n    the function returns the original numeric values unchanged.\n\n    Args:\n        df: Source DataFrame with the numeric values to cap.\n        value_col: Column containing the original values.\n        output_col: Name of the capped output column.\n\n    Returns:\n        A new DataFrame with an additional capped numeric column.\n    \"\"\"\n\n    result = _clone_dataframe(df)\n    _ensure_columns_present(result, [value_col], \"cap_outliers_iqr\")\n    numeric_values = pd.to_numeric(result[value_col], errors=\"coerce\")\n    valid_values = numeric_values.dropna()\n\n    if len(valid_values) < 2:\n        result[output_col] = pd.Series(numeric_values, index=result.index, dtype=\"Float64\")\n        return result\n\n    q1 = float(valid_values.quantile(0.25, interpolation=\"linear\"))\n    q3 = float(valid_values.quantile(0.75, interpolation=\"linear\"))\n    iqr = q3 - q1\n    lower_bound = q1 - 1.5 * iqr\n    upper_bound = q3 + 1.5 * iqr\n\n    capped_values = [\n        pd.NA\n        if pd.isna(value)\n        else float(min(max(float(value), lower_bound), upper_bound))\n        for value in numeric_values\n    ]\n    result[output_col] = pd.Series(capped_values, index=result.index, dtype=\"Float64\")\n    return result\n```\n"
+    }
+  ],
+  "parameters": {
+    "model": "deepseek-v4-pro",
+    "temperature": 0.7,
+    "top_p": 1.0,
+    "max_tokens": 4096,
+    "stream": false,
+    "base_url": "https://api.deepseek.com"
+  },
+  "python_version": "3.11.9",
+  "python_implementation": "CPython",
+  "dependency_versions": {
+    "openai": "2.44.0",
+    "python-dotenv": "1.2.2",
+    "pandas": "3.0.4",
+    "pytest": "8.4.2"
+  },
+  "git_commit": "a75826d611d3619f269f87439b8c63de329e5403",
+  "command_executed": "C:\\Users\\User\\AppData\\Local\\Microsoft\\WindowsApps\\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\\python.exe scripts/generate_llm_tests.py --execute --experiment-id exp_final_10_functions --config experiments/config/deepseek_v4_pro_final_10_functions.json",
+  "extraction_mode": "raw_text",
+  "syntax_error": null
+}

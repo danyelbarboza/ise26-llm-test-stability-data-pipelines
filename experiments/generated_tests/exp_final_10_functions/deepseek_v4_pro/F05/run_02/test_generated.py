@@ -1,4 +1,171 @@
-"""Placeholder file created by the LLM generation infrastructure."""
+import pandas as pd
+import pytest
+from ise26.targets import validate_schema
 
-# Generation status: placeholder
-# GENERATED_TEST_PLACEHOLDER
+
+def test_all_columns_match_types():
+    df = pd.DataFrame({
+        "id": [1, 2, 3],
+        "value": [10.5, 20.1, 30.0],
+        "label": ["a", "b", "c"],
+        "active": [True, False, True],
+        "created_at": pd.to_datetime(["2020-01-01", "2020-06-15", "2021-12-31"]),
+    })
+    schema = {
+        "id": "int",
+        "value": "float",
+        "label": "string",
+        "active": "bool",
+        "created_at": "datetime",
+    }
+    result = validate_schema(df, schema)
+    assert result == {
+        "valid": True,
+        "missing_columns": [],
+        "type_errors": [],
+    }
+
+
+def test_extra_columns_are_allowed():
+    df = pd.DataFrame({
+        "x": [1, 2],
+        "y": [3, 4],
+    })
+    schema = {"x": "int"}
+    result = validate_schema(df, schema)
+    assert result["valid"] is True
+    assert result["missing_columns"] == []
+    assert result["type_errors"] == []
+
+
+def test_missing_column_reported():
+    df = pd.DataFrame({"a": [1]})
+    schema = {"a": "int", "b": "float"}
+    result = validate_schema(df, schema)
+    assert result["valid"] is False
+    assert result["missing_columns"] == ["b"]
+    assert result["type_errors"] == []
+
+
+def test_type_mismatch_single():
+    df = pd.DataFrame({"col": [1, 2, 3]})
+    schema = {"col": "string"}
+    result = validate_schema(df, schema)
+    assert result["valid"] is False
+    assert result["missing_columns"] == []
+    assert len(result["type_errors"]) == 1
+    err = result["type_errors"][0]
+    assert err["column"] == "col"
+    assert err["expected"] == "string"
+    assert err["actual"] in ("int", "number")  # depends on internal inference
+
+
+def test_number_matches_int():
+    df = pd.DataFrame({"count": [10, 20]})
+    schema = {"count": "number"}
+    result = validate_schema(df, schema)
+    assert result["valid"] is True
+    assert result["type_errors"] == []
+
+
+def test_number_matches_float():
+    df = pd.DataFrame({"weight": [70.5, 65.2]})
+    schema = {"weight": "number"}
+    result = validate_schema(df, schema)
+    assert result["valid"] is True
+
+
+def test_number_mismatch_with_string():
+    df = pd.DataFrame({"val": ["a", "b"]})
+    schema = {"val": "number"}
+    result = validate_schema(df, schema)
+    assert result["valid"] is False
+    assert result["type_errors"][0]["expected"] == "number"
+    assert result["type_errors"][0]["actual"] == "string"
+
+
+def test_normalization_strips_and_lowercases():
+    df = pd.DataFrame({"A": [1]})
+    schema = {"A": "  Int "}  # spaces and mixed case
+    result = validate_schema(df, schema)
+    assert result["valid"] is True
+
+
+def test_unsupported_type_raises_valueerror():
+    df = pd.DataFrame({"x": [1]})
+    with pytest.raises(ValueError):
+        validate_schema(df, {"x": "date"})
+
+
+def test_normalized_unsupported_type_raises_valueerror():
+    df = pd.DataFrame({"x": [1]})
+    # spaces and uppercase, but still not in supported set
+    with pytest.raises(ValueError):
+        validate_schema(df, {"x": "  DATE  "})
+
+
+def test_empty_schema_valid():
+    df = pd.DataFrame({"a": [1]})
+    result = validate_schema(df, {})
+    assert result["valid"] is True
+    assert result["missing_columns"] == []
+    assert result["type_errors"] == []
+
+
+def test_empty_dataframe_with_schema_reports_missing():
+    df = pd.DataFrame()
+    schema = {"a": "int"}
+    result = validate_schema(df, schema)
+    assert result["valid"] is False
+    assert result["missing_columns"] == ["a"]
+
+
+def test_column_names_are_case_sensitive():
+    df = pd.DataFrame({"Name": ["Alice"]})
+    schema = {"name": "string"}  # lowercase n
+    result = validate_schema(df, schema)
+    assert result["missing_columns"] == ["name"]
+
+
+def test_multiple_errors_combined():
+    df = pd.DataFrame({"int_col": [1], "str_col": ["hello"]})
+    schema = {
+        "int_col": "float",          # mismatch (int vs float)?
+        "str_col": "int",            # mismatch
+        "missing_col": "string",     # missing column
+    }
+    result = validate_schema(df, schema)
+    assert result["valid"] is False
+    assert "missing_col" in result["missing_columns"]
+    assert any(e["column"] == "int_col" and e["expected"] == "float" for e in result["type_errors"])
+    assert any(e["column"] == "str_col" and e["expected"] == "int" for e in result["type_errors"])
+
+
+def test_bool_column_matches_bool():
+    df = pd.DataFrame({"flag": [True, False]})
+    schema = {"flag": "bool"}
+    result = validate_schema(df, schema)
+    assert result["valid"] is True
+
+
+def test_bool_column_mismatched():
+    df = pd.DataFrame({"flag": [True, False]})
+    schema = {"flag": "int"}
+    result = validate_schema(df, schema)
+    assert result["valid"] is False
+    assert result["type_errors"][0]["actual"] == "bool"
+
+
+def test_datetime_column_matches():
+    df = pd.DataFrame({"ts": pd.to_datetime(["2023-01-01"])})
+    schema = {"ts": "datetime"}
+    result = validate_schema(df, schema)
+    assert result["valid"] is True
+
+
+def test_datetime_column_mismatched():
+    df = pd.DataFrame({"ts": pd.to_datetime(["2023-01-01"])})
+    schema = {"ts": "string"}
+    result = validate_schema(df, schema)
+    assert result["valid"] is False
+    assert result["type_errors"][0]["actual"] == "datetime"

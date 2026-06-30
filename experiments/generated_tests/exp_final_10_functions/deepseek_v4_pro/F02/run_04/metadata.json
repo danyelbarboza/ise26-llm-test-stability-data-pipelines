@@ -1,0 +1,69 @@
+{
+  "function_id": "F02",
+  "function_name": "deduplicate_events",
+  "run_id": "run_04",
+  "provider": "DeepSeek",
+  "model": "deepseek-v4-pro",
+  "experiment_id": "exp_final_10_functions",
+  "temperature": 0.7,
+  "top_p": 1.0,
+  "max_tokens": 4096,
+  "timestamp_utc": "2026-06-30T18:36:33Z",
+  "prompt_hash": "c79230572bc44af9b6a2463f85186396ebdcbc274772478daf81b4bd472a0adf",
+  "function_code_hash": "ad436889c0214e1e74b60b1fb177af4f741cf7a129e0462237c3182dd3619948",
+  "correct_module_hash": "97373262a16281d5b85b79a161d69c933f4dbc461a2e2216e0d3c5009b1c4da5",
+  "config_hash": "c0d1a5760629f11457eb311c9457beb29ce861aec310e0c9d4b3251c0860e08c",
+  "response_hash": "f3a6a601786f2c99703bf3a0d035298a45fe9256d9b5bb337c311e08eedf1cea",
+  "syntax_valid": false,
+  "overwrite_used": false,
+  "success": true,
+  "error": null,
+  "usage": {
+    "completion_tokens": 4096,
+    "prompt_tokens": 955,
+    "total_tokens": 5051,
+    "completion_tokens_details": {
+      "accepted_prediction_tokens": null,
+      "audio_tokens": null,
+      "reasoning_tokens": 2132,
+      "rejected_prediction_tokens": null
+    },
+    "prompt_tokens_details": {
+      "audio_tokens": null,
+      "cached_tokens": 896
+    },
+    "prompt_cache_hit_tokens": 896,
+    "prompt_cache_miss_tokens": 59
+  },
+  "generated_by": "LLM-generated pytest suite for the ISE26 experiment",
+  "request_messages": [
+    {
+      "role": "system",
+      "content": "You generate pytest suites for Python data-transformation functions. Return only valid Python code for the test file and do not include Markdown fences."
+    },
+    {
+      "role": "user",
+      "content": "# Template oficial de geracao de testes do ISE26\n\nGere uma suite de testes em `pytest` para a funcao Python descrita abaixo.\n\nRequisitos obrigatorios:\n\n- importe a funcao somente a partir de `ise26.targets`;\n- use `pytest`;\n- nao altere, nao reimplemente e nao envolva a funcao original;\n- nao use API externa, arquivos externos, rede, banco de dados ou recursos fora do proprio teste;\n- crie os `DataFrame`s sinteticos necessarios dentro do proprio arquivo de teste;\n- nao mencione nem incentive `tests/fixtures.py`;\n- cubra casos comuns e casos de borda;\n- quando o contrato documentar dtype, nulos, ordenacao, arredondamento ou convencao estatistica, verifique isso exatamente como descrito;\n- verifique comportamento por meio de valores retornados e estruturas produzidas pela funcao;\n- retorne apenas codigo Python do arquivo de teste;\n- nao inclua cercas Markdown;\n- nao inclua explicacoes fora do codigo.\n\nImportacao esperada:\n\n```python\nfrom ise26.targets import deduplicate_events\n```\n\nMetadados da funcao:\n\n- ID da funcao: `F02`\n- Nome da funcao: `deduplicate_events`\n- Descricao resumida: `Remove duplicate events by keeping the most recent row per event identifier while preserving null identifiers.`\n\nDocstring da funcao:\n\n```text\nRemove duplicated events while keeping the most recent row per event.\n\nRows with null identifiers are preserved because they cannot be safely\ngrouped into a duplicate set. Invalid timestamps are treated as older than\nvalid timestamps. When timestamps tie within the same event identifier, the\nlast row in the original order is retained.\n\nArgs:\n    df: Source DataFrame with event records.\n    id_col: Column that identifies an event entity.\n    timestamp_col: Column containing the update timestamp.\n\nReturns:\n    A new DataFrame with duplicated identified events removed.\n```\n\nComportamento esperado:\n\n`Keep the most recent row for each non-null event identifier, treat invalid timestamps as older than valid ones, preserve null event identifiers, break timestamp ties by keeping the last row in original order, and avoid mutating the input DataFrame.`\n\nCodigo da funcao correta:\n\n```python\ndef deduplicate_events(\n    df: pd.DataFrame,\n    id_col: str = \"event_id\",\n    timestamp_col: str = \"updated_at\",\n) -> pd.DataFrame:\n    \"\"\"Remove duplicated events while keeping the most recent row per event.\n\n    Rows with null identifiers are preserved because they cannot be safely\n    grouped into a duplicate set. Invalid timestamps are treated as older than\n    valid timestamps. When timestamps tie within the same event identifier, the\n    last row in the original order is retained.\n\n    Args:\n        df: Source DataFrame with event records.\n        id_col: Column that identifies an event entity.\n        timestamp_col: Column containing the update timestamp.\n\n    Returns:\n        A new DataFrame with duplicated identified events removed.\n    \"\"\"\n\n    result = _clone_dataframe(df)\n    _ensure_columns_present(result, [id_col, timestamp_col], \"deduplicate_events\")\n    result[\"_original_order\"] = range(len(result))\n    result[\"_parsed_timestamp\"] = pd.to_datetime(result[timestamp_col], errors=\"coerce\", format=\"mixed\")\n\n    identified_rows = result[result[id_col].notna()].copy()\n    unidentified_rows = result[result[id_col].isna()].copy()\n\n    deduplicated_identified = (\n        identified_rows.sort_values(\n            by=[id_col, \"_parsed_timestamp\", \"_original_order\"],\n            ascending=[True, True, True],\n            kind=\"stable\",\n            na_position=\"first\",\n        )\n        .drop_duplicates(subset=[id_col], keep=\"last\")\n        .copy()\n    )\n\n    final_result = pd.concat([deduplicated_identified, unidentified_rows], ignore_index=True)\n    final_result = final_result.sort_values(by=\"_original_order\", kind=\"stable\").drop(\n        columns=[\"_original_order\", \"_parsed_timestamp\"]\n    )\n\n    return final_result.reset_index(drop=True)\n```\n"
+    }
+  ],
+  "parameters": {
+    "model": "deepseek-v4-pro",
+    "temperature": 0.7,
+    "top_p": 1.0,
+    "max_tokens": 4096,
+    "stream": false,
+    "base_url": "https://api.deepseek.com"
+  },
+  "python_version": "3.11.9",
+  "python_implementation": "CPython",
+  "dependency_versions": {
+    "openai": "2.44.0",
+    "python-dotenv": "1.2.2",
+    "pandas": "3.0.4",
+    "pytest": "8.4.2"
+  },
+  "git_commit": "a75826d611d3619f269f87439b8c63de329e5403",
+  "command_executed": "C:\\Users\\User\\AppData\\Local\\Microsoft\\WindowsApps\\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\\python.exe scripts/generate_llm_tests.py --execute --experiment-id exp_final_10_functions --config experiments/config/deepseek_v4_pro_final_10_functions.json",
+  "extraction_mode": "raw_text",
+  "syntax_error": "'{' was never closed (<unknown>, line 181)"
+}

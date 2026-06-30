@@ -1,0 +1,69 @@
+{
+  "function_id": "F10",
+  "function_name": "standardize_currency_values",
+  "run_id": "run_01",
+  "provider": "DeepSeek",
+  "model": "deepseek-v4-flash",
+  "experiment_id": "exp_final_10_functions",
+  "temperature": 0.7,
+  "top_p": 1.0,
+  "max_tokens": 4096,
+  "timestamp_utc": "2026-06-30T18:23:09Z",
+  "prompt_hash": "cf70b33b5b09e088446a029c03c4d41760bbc605045473f369e987faadd8197d",
+  "function_code_hash": "bf366628145bc42e840a1f3c8f238e3a5011b668048465d1b61c8ed815bd4c8e",
+  "correct_module_hash": "97373262a16281d5b85b79a161d69c933f4dbc461a2e2216e0d3c5009b1c4da5",
+  "config_hash": "94f1be09113c825f8154931dea62d9de5ac594f980c6833724a8bcd2d4818a30",
+  "response_hash": "2e8af2dc5d757ff827021862762b58951e75e2859873538f0a8a401ee2c9a9ef",
+  "syntax_valid": true,
+  "overwrite_used": false,
+  "success": true,
+  "error": null,
+  "usage": {
+    "completion_tokens": 2156,
+    "prompt_tokens": 758,
+    "total_tokens": 2914,
+    "completion_tokens_details": {
+      "accepted_prediction_tokens": null,
+      "audio_tokens": null,
+      "reasoning_tokens": 385,
+      "rejected_prediction_tokens": null
+    },
+    "prompt_tokens_details": {
+      "audio_tokens": null,
+      "cached_tokens": 256
+    },
+    "prompt_cache_hit_tokens": 256,
+    "prompt_cache_miss_tokens": 502
+  },
+  "generated_by": "LLM-generated pytest suite for the ISE26 experiment",
+  "request_messages": [
+    {
+      "role": "system",
+      "content": "You generate pytest suites for Python data-transformation functions. Return only valid Python code for the test file and do not include Markdown fences."
+    },
+    {
+      "role": "user",
+      "content": "# Template oficial de geracao de testes do ISE26\n\nGere uma suite de testes em `pytest` para a funcao Python descrita abaixo.\n\nRequisitos obrigatorios:\n\n- importe a funcao somente a partir de `ise26.targets`;\n- use `pytest`;\n- nao altere, nao reimplemente e nao envolva a funcao original;\n- nao use API externa, arquivos externos, rede, banco de dados ou recursos fora do proprio teste;\n- crie os `DataFrame`s sinteticos necessarios dentro do proprio arquivo de teste;\n- nao mencione nem incentive `tests/fixtures.py`;\n- cubra casos comuns e casos de borda;\n- quando o contrato documentar dtype, nulos, ordenacao, arredondamento ou convencao estatistica, verifique isso exatamente como descrito;\n- verifique comportamento por meio de valores retornados e estruturas produzidas pela funcao;\n- retorne apenas codigo Python do arquivo de teste;\n- nao inclua cercas Markdown;\n- nao inclua explicacoes fora do codigo.\n\nImportacao esperada:\n\n```python\nfrom ise26.targets import standardize_currency_values\n```\n\nMetadados da funcao:\n\n- ID da funcao: `F10`\n- Nome da funcao: `standardize_currency_values`\n- Descricao resumida: `Normalize common textual currency representations into numeric values.`\n\nDocstring da funcao:\n\n```text\nNormalize common textual currency formats into numeric values.\n\nThe parser accepts both Brazilian and English separators, removes the\n``R$`` prefix and whitespace before parsing, and leaves invalid values as\n``pd.NA``. The original raw column remains untouched.\n\nArgs:\n    df: Source DataFrame with text currency values.\n    value_col: Column containing the raw textual amounts.\n    output_col: Name of the standardized numeric output column.\n\nReturns:\n    A new DataFrame with a nullable numeric currency column.\n```\n\nComportamento esperado:\n\n`Convert currency strings such as Brazilian and English formats into numeric values, support comma and dot decimal conventions, preserve the original raw column, and return missing values when the input cannot be parsed as a monetary amount.`\n\nCodigo da funcao correta:\n\n```python\ndef standardize_currency_values(\n    df: pd.DataFrame,\n    value_col: str = \"amount_raw\",\n    output_col: str = \"amount\",\n) -> pd.DataFrame:\n    \"\"\"Normalize common textual currency formats into numeric values.\n\n    The parser accepts both Brazilian and English separators, removes the\n    ``R$`` prefix and whitespace before parsing, and leaves invalid values as\n    ``pd.NA``. The original raw column remains untouched.\n\n    Args:\n        df: Source DataFrame with text currency values.\n        value_col: Column containing the raw textual amounts.\n        output_col: Name of the standardized numeric output column.\n\n    Returns:\n        A new DataFrame with a nullable numeric currency column.\n    \"\"\"\n\n    result = _clone_dataframe(df)\n    _ensure_columns_present(result, [value_col], \"standardize_currency_values\")\n    normalized_values = [_coerce_currency_text(value) for value in result[value_col]]\n    result[output_col] = pd.Series(normalized_values, index=result.index, dtype=\"Float64\")\n    return result\n```\n"
+    }
+  ],
+  "parameters": {
+    "model": "deepseek-v4-flash",
+    "temperature": 0.7,
+    "top_p": 1.0,
+    "max_tokens": 4096,
+    "stream": false,
+    "base_url": "https://api.deepseek.com"
+  },
+  "python_version": "3.11.9",
+  "python_implementation": "CPython",
+  "dependency_versions": {
+    "openai": "2.44.0",
+    "python-dotenv": "1.2.2",
+    "pandas": "3.0.4",
+    "pytest": "8.4.2"
+  },
+  "git_commit": "a75826d611d3619f269f87439b8c63de329e5403",
+  "command_executed": "C:\\Users\\User\\AppData\\Local\\Microsoft\\WindowsApps\\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\\python.exe scripts/generate_llm_tests.py --execute --experiment-id exp_final_10_functions --config experiments/config/deepseek_v4_flash_final_10_functions.json",
+  "extraction_mode": "markdown_python",
+  "syntax_error": null
+}

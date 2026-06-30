@@ -1,0 +1,126 @@
+# Template oficial de geracao de testes do ISE26
+
+Gere uma suite de testes em `pytest` para a funcao Python descrita abaixo.
+
+Requisitos obrigatorios:
+
+- importe a funcao somente a partir de `ise26.targets`;
+- use `pytest`;
+- nao altere, nao reimplemente e nao envolva a funcao original;
+- nao use API externa, arquivos externos, rede, banco de dados ou recursos fora do proprio teste;
+- crie os `DataFrame`s sinteticos necessarios dentro do proprio arquivo de teste;
+- nao mencione nem incentive `tests/fixtures.py`;
+- cubra casos comuns e casos de borda;
+- quando o contrato documentar dtype, nulos, ordenacao, arredondamento ou convencao estatistica, verifique isso exatamente como descrito;
+- verifique comportamento por meio de valores retornados e estruturas produzidas pela funcao;
+- retorne apenas codigo Python do arquivo de teste;
+- nao inclua cercas Markdown;
+- nao inclua explicacoes fora do codigo.
+
+Importacao esperada:
+
+```python
+from ise26.targets import parse_order_items_json
+```
+
+Metadados da funcao:
+
+- ID da funcao: `F07`
+- Nome da funcao: `parse_order_items_json`
+- Descricao resumida: `Expand JSON-encoded order items into one row per item while preserving order identifiers.`
+
+Docstring da funcao:
+
+```text
+Explode JSON-encoded order items into one row per item.
+
+The function accepts JSON lists only and skips invalid, empty, missing, or
+non-list payloads. Each valid item keeps the originating order identifier,
+missing ``sku`` values become ``pd.NA``, and quantity or unit price values
+that cannot be parsed are converted to zero before computing ``item_total``.
+
+Args:
+    df: Source DataFrame containing JSON-encoded item lists.
+    json_col: Column that stores the JSON payload.
+    order_id_col: Column that identifies the order.
+
+Returns:
+    A new DataFrame with one row per item and the columns ``order_id``,
+    ``sku``, ``quantity``, ``unit_price``, and ``item_total``. When a
+    custom ``order_id_col`` is provided, that same name is preserved in the
+    output.
+```
+
+Comportamento esperado:
+
+`Parse each JSON list of order items, explode valid items into separate rows, keep the order identifier, compute item_total as quantity multiplied by unit_price, treat invalid or missing quantity and unit_price values as zero, and skip rows with invalid, empty, or missing JSON payloads.`
+
+Codigo da funcao correta:
+
+```python
+def parse_order_items_json(
+    df: pd.DataFrame,
+    json_col: str = "items_json",
+    order_id_col: str = "order_id",
+) -> pd.DataFrame:
+    """Explode JSON-encoded order items into one row per item.
+
+    The function accepts JSON lists only and skips invalid, empty, missing, or
+    non-list payloads. Each valid item keeps the originating order identifier,
+    missing ``sku`` values become ``pd.NA``, and quantity or unit price values
+    that cannot be parsed are converted to zero before computing ``item_total``.
+
+    Args:
+        df: Source DataFrame containing JSON-encoded item lists.
+        json_col: Column that stores the JSON payload.
+        order_id_col: Column that identifies the order.
+
+    Returns:
+        A new DataFrame with one row per item and the columns ``order_id``,
+        ``sku``, ``quantity``, ``unit_price``, and ``item_total``. When a
+        custom ``order_id_col`` is provided, that same name is preserved in the
+        output.
+    """
+
+    result = _clone_dataframe(df)
+    _ensure_columns_present(result, [json_col, order_id_col], "parse_order_items_json")
+    output_records: list[dict[str, Any]] = []
+
+    for source_order, (_, row) in enumerate(result.iterrows()):
+        item_payloads = _parse_order_items_payload(row[json_col])
+        for item_order, item_payload in enumerate(item_payloads):
+            quantity = _coerce_numeric_or_zero(item_payload.get("quantity"))
+            unit_price = _coerce_numeric_or_zero(item_payload.get("unit_price"))
+
+            output_records.append(
+                {
+                    order_id_col: row[order_id_col],
+                    "sku": _normalize_optional_text(item_payload.get("sku")),
+                    "quantity": quantity,
+                    "unit_price": unit_price,
+                    "item_total": quantity * unit_price,
+                    "_source_order": source_order,
+                    "_item_order": item_order,
+                }
+            )
+
+    output_columns = [order_id_col, "sku", "quantity", "unit_price", "item_total"]
+    if not output_records:
+        return pd.DataFrame(
+            {
+                order_id_col: pd.Series(dtype=result[order_id_col].dtype),
+                "sku": pd.Series(dtype="object"),
+                "quantity": pd.Series(dtype="float64"),
+                "unit_price": pd.Series(dtype="float64"),
+                "item_total": pd.Series(dtype="float64"),
+            }
+        )
+
+    exploded_items = pd.DataFrame.from_records(output_records)
+    exploded_items = exploded_items.sort_values(
+        by=["_source_order", "_item_order"],
+        kind="stable",
+    )
+
+    return exploded_items[output_columns].reset_index(drop=True)
+```

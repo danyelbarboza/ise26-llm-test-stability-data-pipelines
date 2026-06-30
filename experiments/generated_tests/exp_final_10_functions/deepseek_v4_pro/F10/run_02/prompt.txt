@@ -1,0 +1,82 @@
+# Template oficial de geracao de testes do ISE26
+
+Gere uma suite de testes em `pytest` para a funcao Python descrita abaixo.
+
+Requisitos obrigatorios:
+
+- importe a funcao somente a partir de `ise26.targets`;
+- use `pytest`;
+- nao altere, nao reimplemente e nao envolva a funcao original;
+- nao use API externa, arquivos externos, rede, banco de dados ou recursos fora do proprio teste;
+- crie os `DataFrame`s sinteticos necessarios dentro do proprio arquivo de teste;
+- nao mencione nem incentive `tests/fixtures.py`;
+- cubra casos comuns e casos de borda;
+- quando o contrato documentar dtype, nulos, ordenacao, arredondamento ou convencao estatistica, verifique isso exatamente como descrito;
+- verifique comportamento por meio de valores retornados e estruturas produzidas pela funcao;
+- retorne apenas codigo Python do arquivo de teste;
+- nao inclua cercas Markdown;
+- nao inclua explicacoes fora do codigo.
+
+Importacao esperada:
+
+```python
+from ise26.targets import standardize_currency_values
+```
+
+Metadados da funcao:
+
+- ID da funcao: `F10`
+- Nome da funcao: `standardize_currency_values`
+- Descricao resumida: `Normalize common textual currency representations into numeric values.`
+
+Docstring da funcao:
+
+```text
+Normalize common textual currency formats into numeric values.
+
+The parser accepts both Brazilian and English separators, removes the
+``R$`` prefix and whitespace before parsing, and leaves invalid values as
+``pd.NA``. The original raw column remains untouched.
+
+Args:
+    df: Source DataFrame with text currency values.
+    value_col: Column containing the raw textual amounts.
+    output_col: Name of the standardized numeric output column.
+
+Returns:
+    A new DataFrame with a nullable numeric currency column.
+```
+
+Comportamento esperado:
+
+`Convert currency strings such as Brazilian and English formats into numeric values, support comma and dot decimal conventions, preserve the original raw column, and return missing values when the input cannot be parsed as a monetary amount.`
+
+Codigo da funcao correta:
+
+```python
+def standardize_currency_values(
+    df: pd.DataFrame,
+    value_col: str = "amount_raw",
+    output_col: str = "amount",
+) -> pd.DataFrame:
+    """Normalize common textual currency formats into numeric values.
+
+    The parser accepts both Brazilian and English separators, removes the
+    ``R$`` prefix and whitespace before parsing, and leaves invalid values as
+    ``pd.NA``. The original raw column remains untouched.
+
+    Args:
+        df: Source DataFrame with text currency values.
+        value_col: Column containing the raw textual amounts.
+        output_col: Name of the standardized numeric output column.
+
+    Returns:
+        A new DataFrame with a nullable numeric currency column.
+    """
+
+    result = _clone_dataframe(df)
+    _ensure_columns_present(result, [value_col], "standardize_currency_values")
+    normalized_values = [_coerce_currency_text(value) for value in result[value_col]]
+    result[output_col] = pd.Series(normalized_values, index=result.index, dtype="Float64")
+    return result
+```
