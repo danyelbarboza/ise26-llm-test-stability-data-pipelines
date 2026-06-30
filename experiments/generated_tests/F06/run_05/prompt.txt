@@ -1,0 +1,122 @@
+# Template oficial de geração de testes do ISE26
+
+Gere uma suíte de testes em `pytest` para a função Python descrita abaixo.
+
+Requisitos obrigatórios:
+
+- Importe a função somente a partir de `ise26.targets`.
+- Use `pytest`.
+- Não altere, não reimplemente e não envolva a função original.
+- Não use API externa, arquivos externos, rede, banco de dados ou recursos fora do próprio teste.
+- Crie os `DataFrame`s sintéticos necessários dentro do próprio arquivo de teste.
+- Não importe `tests.fixtures` nem qualquer fixture interna do repositório.
+- Cubra casos comuns e casos de borda.
+- Quando fizer sentido, considere valores nulos, duplicatas, datas, schema e regras de negócio.
+- Verifique comportamento por meio de valores retornados e estruturas produzidas pela função.
+- Retorne apenas código Python do arquivo de teste.
+- Não inclua cercas Markdown.
+- Não inclua explicações fora do código.
+
+Importação esperada:
+
+```python
+from ise26.targets import classify_payment_status
+```
+
+Metadados da função:
+
+- ID da função: `F06`
+- Nome da função: `classify_payment_status`
+- Descrição resumida: `Classify payment rows as invalid, paid on time, paid late, overdue, or pending, treating invalid provided payment dates as invalid.`
+
+Docstring da função:
+
+```text
+Classify each payment row according to due date, payment date, and amount.
+
+Invalid monetary values and invalid due dates are immediately marked as
+``invalid``. A provided but invalid paid date is also classified as
+``invalid`` instead of being treated as a missing payment. Valid paid dates
+are compared against the due date, while genuinely unpaid rows are
+classified relative to the provided reference date.
+
+Args:
+    df: Source DataFrame with payment information.
+    reference_date: Date used to classify unpaid records as pending or overdue.
+    due_date_col: Column containing the due date.
+    paid_date_col: Column containing the payment date.
+    amount_col: Column containing the payment amount.
+    output_col: Name of the output classification column.
+
+Returns:
+    A new DataFrame with the payment status column added.
+```
+
+Comportamento esperado:
+
+`Mark rows as invalid when amount is missing, non-numeric, or less than or equal to zero, when due_date is invalid, or when a provided paid_date is invalid; otherwise classify as paid_on_time, paid_late, overdue, or pending based on due_date, paid_date, and a valid reference_date.`
+
+Código da função correta:
+
+```python
+def classify_payment_status(
+    df: pd.DataFrame,
+    reference_date: Any,
+    due_date_col: str = "due_date",
+    paid_date_col: str = "paid_date",
+    amount_col: str = "amount",
+    output_col: str = "payment_status",
+) -> pd.DataFrame:
+    """Classify each payment row according to due date, payment date, and amount.
+
+    Invalid monetary values and invalid due dates are immediately marked as
+    ``invalid``. A provided but invalid paid date is also classified as
+    ``invalid`` instead of being treated as a missing payment. Valid paid dates
+    are compared against the due date, while genuinely unpaid rows are
+    classified relative to the provided reference date.
+
+    Args:
+        df: Source DataFrame with payment information.
+        reference_date: Date used to classify unpaid records as pending or overdue.
+        due_date_col: Column containing the due date.
+        paid_date_col: Column containing the payment date.
+        amount_col: Column containing the payment amount.
+        output_col: Name of the output classification column.
+
+    Returns:
+        A new DataFrame with the payment status column added.
+    """
+
+    parsed_reference_date = pd.to_datetime(reference_date, errors="coerce")
+    if pd.isna(parsed_reference_date):
+        raise ValueError("reference_date must be a valid date-like value")
+
+    result = _clone_dataframe(df)
+    due_dates = pd.to_datetime(result[due_date_col], errors="coerce")
+    paid_dates = pd.to_datetime(result[paid_date_col], errors="coerce")
+    amounts = pd.to_numeric(result[amount_col], errors="coerce")
+    paid_date_text = result[paid_date_col].astype("string").str.strip()
+    paid_date_provided = result[paid_date_col].notna() & paid_date_text.ne("").fillna(False)
+
+    statuses = pd.Series(index=result.index, dtype="object")
+
+    invalid_paid_date_mask = paid_date_provided & paid_dates.isna()
+    invalid_mask = due_dates.isna() | amounts.isna() | (amounts <= 0) | invalid_paid_date_mask
+    statuses.loc[invalid_mask] = "invalid"
+
+    paid_on_time_mask = (~invalid_mask) & paid_dates.notna() & (paid_dates <= due_dates)
+    statuses.loc[paid_on_time_mask] = "paid_on_time"
+
+    paid_late_mask = (~invalid_mask) & paid_dates.notna() & (paid_dates > due_dates)
+    statuses.loc[paid_late_mask] = "paid_late"
+
+    unpaid_mask = (~invalid_mask) & paid_dates.isna()
+    overdue_mask = unpaid_mask & (parsed_reference_date > due_dates)
+    pending_mask = unpaid_mask & (parsed_reference_date <= due_dates)
+
+    statuses.loc[overdue_mask] = "overdue"
+    statuses.loc[pending_mask] = "pending"
+
+    result[output_col] = statuses
+    return result
+```

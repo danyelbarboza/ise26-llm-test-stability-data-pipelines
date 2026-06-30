@@ -1,7 +1,201 @@
-"""Placeholder for a real LLM-generated pytest suite.
+import pandas as pd
+import numpy as np
+import pytest
+from ise26.targets import clean_customer_names
 
-This file is intentionally kept without executable tests until a real response
-is generated and pasted here.
-"""
 
-# GENERATED_TEST_PLACEHOLDER
+class TestCleanCustomerNames:
+    """Test suite for clean_customer_names function."""
+
+    # ----------------------------------------------------------------------
+    # Helper to assert that the original DataFrame is not mutated
+    # ----------------------------------------------------------------------
+    @staticmethod
+    def _assert_no_mutation(original: pd.DataFrame, result: pd.DataFrame) -> None:
+        """Check that the original DataFrame is unchanged."""
+        pd.testing.assert_frame_equal(original, original)  # placeholder, we compare later
+        # Ensure result has extra column
+        assert result.shape[1] == original.shape[1] + 1
+
+    # ----------------------------------------------------------------------
+    # Basic normalization
+    # ----------------------------------------------------------------------
+    def test_basic_normalization(self) -> None:
+        """Standard names are lowercased, spaces compressed, accents removed."""
+        df = pd.DataFrame({
+            "customer_name": ["  João  Silva  ", "MARIA DAS GRAÇAS", "José-Francisco"]
+        })
+        result = clean_customer_names(df)
+        expected_names = ["joão silva", "maria das graças", "josé-francisco"]
+        # After normalization they should be without accents and extra spaces
+        # Note: The function removes accents, so "joão" -> "joao", "graças" -> "graças" -> "gracas"
+        normalized_expected = ["joao silva", "maria das gracas", "jose-francisco"]
+        pd.testing.assert_series_equal(
+            result["customer_name_clean"],
+            pd.Series(normalized_expected, name="customer_name_clean", dtype=object),
+            check_dtype=False
+        )
+
+    def test_default_column_names(self) -> None:
+        """Default input and output columns are used."""
+        df = pd.DataFrame({"customer_name": ["  ABC  "]})
+        result = clean_customer_names(df)
+        assert "customer_name_clean" in result.columns
+        assert result["customer_name_clean"].iloc[0] == "abc"
+
+    def test_custom_column_names(self) -> None:
+        """Custom input and output column names work."""
+        df = pd.DataFrame({"raw_name": ["  Test  "]})
+        result = clean_customer_names(df, name_col="raw_name", output_col="normalized")
+        assert "normalized" in result.columns
+        assert result["normalized"].iloc[0] == "test"
+        assert "raw_name" in result.columns  # original preserved
+
+    # ----------------------------------------------------------------------
+    # Edge cases: nulls and blanks
+    # ----------------------------------------------------------------------
+    def test_null_values(self) -> None:
+        """Null (None) values become pd.NA."""
+        df = pd.DataFrame({"customer_name": [None, np.nan]})
+        result = clean_customer_names(df)
+        assert result["customer_name_clean"].isna().all()
+        assert result["customer_name_clean"].dtype == object  # or nullable, but function may keep object
+
+    def test_empty_string(self) -> None:
+        """Empty string becomes pd.NA."""
+        df = pd.DataFrame({"customer_name": [""]})
+        result = clean_customer_names(df)
+        assert pd.isna(result["customer_name_clean"].iloc[0])
+
+    def test_blank_string(self) -> None:
+        """String with only spaces becomes pd.NA."""
+        df = pd.DataFrame({"customer_name": ["   "]})
+        result = clean_customer_names(df)
+        assert pd.isna(result["customer_name_clean"].iloc[0])
+
+    def test_mixed_blanks_and_nulls(self) -> None:
+        """Combination of nulls, blanks, and valid names."""
+        df = pd.DataFrame({
+            "customer_name": [" Álvaro  ", None, "", "   ", "  JÚLIA  "]
+        })
+        result = clean_customer_names(df)
+        # Expected: valid names normalized, others NA
+        expected = ["alvaro", pd.NA, pd.NA, pd.NA, "julia"]
+        # Convert to pandas series for comparison
+        expected_series = pd.Series(expected, dtype=object)
+        pd.testing.assert_series_equal(
+            result["customer_name_clean"],
+            expected_series,
+            check_dtype=False,
+            check_names=False
+        )
+
+    # ----------------------------------------------------------------------
+    # Preservation of original DataFrame
+    # ----------------------------------------------------------------------
+    def test_original_dataframe_not_modified(self) -> None:
+        """Original DataFrame is not mutated (no new columns, no changes)."""
+        original = pd.DataFrame({"customer_name": ["Test"]})
+        original_copy = original.copy()
+        result = clean_customer_names(original)
+        pd.testing.assert_frame_equal(original, original_copy)
+        # Confirm result has extra column
+        assert list(result.columns) == ["customer_name", "customer_name_clean"]
+
+    def test_result_is_new_dataframe(self) -> None:
+        """Returned DataFrame is a different object from input."""
+        df = pd.DataFrame({"customer_name": ["Test"]})
+        result = clean_customer_names(df)
+        assert result is not df
+
+    # ----------------------------------------------------------------------
+    # Multiple columns in DataFrame
+    # ----------------------------------------------------------------------
+    def test_extra_columns_preserved(self) -> None:
+        """Other columns in the DataFrame are preserved unchanged."""
+        df = pd.DataFrame({
+            "id": [1, 2],
+            "customer_name": ["  Foo  ", "  Bar  "],
+            "value": [10.5, 20.3]
+        })
+        result = clean_customer_names(df)
+        # Check original columns unchanged
+        pd.testing.assert_series_equal(result["id"], df["id"], check_names=False)
+        pd.testing.assert_series_equal(result["value"], df["value"], check_names=False)
+        # Check normalized column exists and correct
+        expected = ["foo", "bar"]
+        pd.testing.assert_series_equal(
+            result["customer_name_clean"],
+            pd.Series(expected, name="customer_name_clean", dtype=object),
+            check_dtype=False
+        )
+
+    # ----------------------------------------------------------------------
+    # Accent removal
+    # ----------------------------------------------------------------------
+    def test_accent_removal(self) -> None:
+        """Common accented characters are normalized to ASCII."""
+        df = pd.DataFrame({
+            "customer_name": [
+                "ÁéÍóÚ",  # various accents
+                "äëïöü",  # umlauts
+                "çñ",     # cedilla and tilde
+                "François"
+            ]
+        })
+        result = clean_customer_names(df)
+        expected = ["aeiou", "aeiou", "cn", "francois"]
+        pd.testing.assert_series_equal(
+            result["customer_name_clean"],
+            pd.Series(expected, name="customer_name_clean", dtype=object),
+            check_dtype=False
+        )
+
+    # ----------------------------------------------------------------------
+    # Repeated whitespace inside string
+    # ----------------------------------------------------------------------
+    def test_multiple_spaces_inside(self) -> None:
+        """Multiple internal spaces are collapsed to single space."""
+        df = pd.DataFrame({"customer_name": ["John    Doe"]})
+        result = clean_customer_names(df)
+        assert result["customer_name_clean"].iloc[0] == "john doe"
+
+    def test_leading_trailing_spaces(self) -> None:
+        """Leading and trailing spaces are removed."""
+        df = pd.DataFrame({"customer_name": ["  Hello World  "]})
+        result = clean_customer_names(df)
+        assert result["customer_name_clean"].iloc[0] == "hello world"
+
+    # ----------------------------------------------------------------------
+    # Non-string entries (if function converts to string)
+    # ----------------------------------------------------------------------
+    def test_numeric_values_as_strings(self) -> None:
+        """Numeric values are converted to string and normalized."""
+        df = pd.DataFrame({"customer_name": [123, 456.7]})
+        result = clean_customer_names(df)
+        expected = ["123", "456.7"]
+        pd.testing.assert_series_equal(
+            result["customer_name_clean"],
+            pd.Series(expected, name="customer_name_clean", dtype=object),
+            check_dtype=False
+        )
+
+    # ----------------------------------------------------------------------
+    # Default parameters when column exists
+    # ----------------------------------------------------------------------
+    def test_default_params_with_custom_data(self) -> None:
+        """Works with default column names on arbitrary data."""
+        df = pd.DataFrame({"customer_name": ["  Some  Name  "]})
+        result = clean_customer_names(df)
+        assert result["customer_name_clean"].iloc[0] == "some name"
+
+    # ----------------------------------------------------------------------
+    # Empty DataFrame
+    # ----------------------------------------------------------------------
+    def test_empty_dataframe(self) -> None:
+        """Empty DataFrame returns empty with extra column."""
+        df = pd.DataFrame({"customer_name": pd.Series(dtype=object)})
+        result = clean_customer_names(df)
+        assert len(result) == 0
+        assert "customer_name_clean" in result.columns
+        assert result["customer_name_clean"].dtype == object

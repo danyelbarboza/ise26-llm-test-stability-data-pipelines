@@ -1,0 +1,185 @@
+```python
+import pandas as pd
+import pytest
+from ise26.targets import deduplicate_events
+
+
+def test_no_duplicates_keeps_all_rows():
+    df = pd.DataFrame({
+        "event_id": [1, 2, None, 3],
+        "updated_at": ["2023-01-01", "2023-01-02", "2023-01-03", "2023-01-04"],
+        "value": ["a", "b", "c", "d"]
+    })
+    result = deduplicate_events(df)
+    expected = df.copy()
+    pd.testing.assert_frame_equal(result, expected)
+
+
+def test_duplicates_keeps_most_recent_valid_timestamp():
+    df = pd.DataFrame({
+        "event_id": [1, 1],
+        "updated_at": ["2023-01-01", "2023-01-02"],
+        "value": ["old", "new"]
+    })
+    result = deduplicate_events(df)
+    expected = pd.DataFrame({
+        "event_id": [1],
+        "updated_at": ["2023-01-02"],
+        "value": ["new"]
+    })
+    pd.testing.assert_frame_equal(result, expected)
+
+
+def test_duplicates_invalid_timestamp_treated_as_old():
+    df = pd.DataFrame({
+        "event_id": [1, 1, 1],
+        "updated_at": ["invalid", "2023-01-01", "2023-01-02"],
+        "value": ["x", "middle", "new"]
+    })
+    result = deduplicate_events(df)
+    expected = pd.DataFrame({
+        "event_id": [1],
+        "updated_at": ["2023-01-02"],
+        "value": ["new"]
+    })
+    pd.testing.assert_frame_equal(result, expected)
+
+
+def test_tie_timestamps_keeps_last_in_order():
+    df = pd.DataFrame({
+        "event_id": [1, 1],
+        "updated_at": ["2023-01-01", "2023-01-01"],
+        "value": ["first", "second"]
+    })
+    result = deduplicate_events(df)
+    expected = pd.DataFrame({
+        "event_id": [1],
+        "updated_at": ["2023-01-01"],
+        "value": ["second"]
+    })
+    pd.testing.assert_frame_equal(result, expected)
+
+
+def test_null_id_preserved():
+    df = pd.DataFrame({
+        "event_id": [None, None],
+        "updated_at": ["2023-01-01", "2023-01-02"],
+        "value": ["a", "b"]
+    })
+    result = deduplicate_events(df)
+    expected = df.copy()
+    pd.testing.assert_frame_equal(result, expected)
+
+
+def test_mixed_null_and_duplicate_ids():
+    df = pd.DataFrame({
+        "event_id": [None, 1, 1, None],
+        "updated_at": ["2023-01-01", "2023-01-01", "2023-01-02", "2023-01-03"],
+        "value": ["a", "old", "new", "b"]
+    })
+    result = deduplicate_events(df)
+    expected = pd.DataFrame({
+        "event_id": [None, 1, None],
+        "updated_at": ["2023-01-01", "2023-01-02", "2023-01-03"],
+        "value": ["a", "new", "b"]
+    })
+    pd.testing.assert_frame_equal(result, expected)
+
+
+def test_empty_dataframe():
+    df = pd.DataFrame({"event_id": pd.Series(dtype=object), "updated_at": pd.Series(dtype=object)})
+    result = deduplicate_events(df)
+    assert result.empty
+    assert list(result.columns) == ["event_id", "updated_at"]
+
+
+def test_only_null_ids():
+    df = pd.DataFrame({
+        "event_id": [None, None],
+        "updated_at": ["2023-01-01", "2023-01-02"]
+    })
+    result = deduplicate_events(df)
+    expected = df.copy()
+    pd.testing.assert_frame_equal(result, expected)
+
+
+def test_only_non_null_no_duplicates():
+    df = pd.DataFrame({
+        "event_id": [10, 20],
+        "updated_at": ["2023-01-01", "2023-01-02"]
+    })
+    result = deduplicate_events(df)
+    expected = df.copy()
+    pd.testing.assert_frame_equal(result, expected)
+
+
+def test_multiple_duplicates():
+    df = pd.DataFrame({
+        "event_id": [1, 1, 1, 1],
+        "updated_at": ["2023-01-01", "2023-01-02", "2023-01-03", "2023-01-04"],
+        "value": ["a", "b", "c", "d"]
+    })
+    result = deduplicate_events(df)
+    expected = pd.DataFrame({
+        "event_id": [1],
+        "updated_at": ["2023-01-04"],
+        "value": ["d"]
+    })
+    pd.testing.assert_frame_equal(result, expected)
+
+
+def test_input_not_mutated():
+    df = pd.DataFrame({
+        "event_id": [1, 1],
+        "updated_at": ["2023-01-01", "2023-01-02"]
+    })
+    original = df.copy()
+    deduplicate_events(df)
+    pd.testing.assert_frame_equal(df, original)
+
+
+def test_custom_column_names():
+    df = pd.DataFrame({
+        "my_id": [1, 2, 1],
+        "my_ts": ["2023-01-01", "2023-01-02", "2023-01-03"],
+        "info": ["a", "b", "c"]
+    })
+    result = deduplicate_events(df, id_col="my_id", timestamp_col="my_ts")
+    expected = pd.DataFrame({
+        "my_id": [2, 1],
+        "my_ts": ["2023-01-02", "2023-01-03"],
+        "info": ["b", "c"]
+    })
+    pd.testing.assert_frame_equal(result, expected)
+
+
+def test_all_invalid_timestamps_keep_one_per_id():
+    df = pd.DataFrame({
+        "event_id": [1, 1, 2],
+        "updated_at": ["invalid", "invalid", "bad"],
+        "value": ["x", "y", "z"]
+    })
+    result = deduplicate_events(df)
+    expected = pd.DataFrame({
+        "event_id": [1, 2],
+        "updated_at": ["invalid", "bad"],
+        "value": ["y", "z"]
+    })
+    pd.testing.assert_frame_equal(result, expected)
+
+
+def test_mixed_timestamps_with_null_ids():
+    df = pd.DataFrame({
+        "event_id": [None, 1, 1, None],
+        "updated_at": [pd.NaT, "2023-01-01", "2023-01-02", "2023-01-03"],
+        "value": ["a", "old", "new", "b"]
+    })
+    result = deduplicate_events(df)
+    # null rows preserved; id=1 keeps "new"
+    expected = pd.DataFrame({
+        "event_id": [None, 1, None],
+        "updated_at": [pd.NaT, "2023-01-02", "2023-01-03"],
+        "value": ["a", "new", "b"]
+    })
+    pd.testing.assert_frame_equal(result, expected)
+```

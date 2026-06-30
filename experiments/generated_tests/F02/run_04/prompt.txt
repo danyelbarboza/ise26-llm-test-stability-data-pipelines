@@ -1,0 +1,103 @@
+# Template oficial de geração de testes do ISE26
+
+Gere uma suíte de testes em `pytest` para a função Python descrita abaixo.
+
+Requisitos obrigatórios:
+
+- Importe a função somente a partir de `ise26.targets`.
+- Use `pytest`.
+- Não altere, não reimplemente e não envolva a função original.
+- Não use API externa, arquivos externos, rede, banco de dados ou recursos fora do próprio teste.
+- Crie os `DataFrame`s sintéticos necessários dentro do próprio arquivo de teste.
+- Não importe `tests.fixtures` nem qualquer fixture interna do repositório.
+- Cubra casos comuns e casos de borda.
+- Quando fizer sentido, considere valores nulos, duplicatas, datas, schema e regras de negócio.
+- Verifique comportamento por meio de valores retornados e estruturas produzidas pela função.
+- Retorne apenas código Python do arquivo de teste.
+- Não inclua cercas Markdown.
+- Não inclua explicações fora do código.
+
+Importação esperada:
+
+```python
+from ise26.targets import deduplicate_events
+```
+
+Metadados da função:
+
+- ID da função: `F02`
+- Nome da função: `deduplicate_events`
+- Descrição resumida: `Remove duplicate events by keeping the most recent row per event identifier while preserving null identifiers.`
+
+Docstring da função:
+
+```text
+Remove duplicated events while keeping the most recent row per event.
+
+Rows with null identifiers are preserved because they cannot be safely
+grouped into a duplicate set. Invalid timestamps are treated as older than
+valid timestamps. When timestamps tie within the same event identifier, the
+last row in the original order is retained.
+
+Args:
+    df: Source DataFrame with event records.
+    id_col: Column that identifies an event entity.
+    timestamp_col: Column containing the update timestamp.
+
+Returns:
+    A new DataFrame with duplicated identified events removed.
+```
+
+Comportamento esperado:
+
+`Keep the most recent row for each non-null event identifier, treat invalid timestamps as older than valid ones, preserve null event identifiers, break timestamp ties by keeping the last row in original order, and avoid mutating the input DataFrame.`
+
+Código da função correta:
+
+```python
+def deduplicate_events(
+    df: pd.DataFrame,
+    id_col: str = "event_id",
+    timestamp_col: str = "updated_at",
+) -> pd.DataFrame:
+    """Remove duplicated events while keeping the most recent row per event.
+
+    Rows with null identifiers are preserved because they cannot be safely
+    grouped into a duplicate set. Invalid timestamps are treated as older than
+    valid timestamps. When timestamps tie within the same event identifier, the
+    last row in the original order is retained.
+
+    Args:
+        df: Source DataFrame with event records.
+        id_col: Column that identifies an event entity.
+        timestamp_col: Column containing the update timestamp.
+
+    Returns:
+        A new DataFrame with duplicated identified events removed.
+    """
+
+    result = _clone_dataframe(df)
+    result["_original_order"] = range(len(result))
+    result["_parsed_timestamp"] = pd.to_datetime(result[timestamp_col], errors="coerce")
+
+    identified_rows = result[result[id_col].notna()].copy()
+    unidentified_rows = result[result[id_col].isna()].copy()
+
+    deduplicated_identified = (
+        identified_rows.sort_values(
+            by=[id_col, "_parsed_timestamp", "_original_order"],
+            ascending=[True, True, True],
+            kind="stable",
+            na_position="first",
+        )
+        .drop_duplicates(subset=[id_col], keep="last")
+        .copy()
+    )
+
+    final_result = pd.concat([deduplicated_identified, unidentified_rows], ignore_index=True)
+    final_result = final_result.sort_values(by="_original_order", kind="stable").drop(
+        columns=["_original_order", "_parsed_timestamp"]
+    )
+
+    return final_result.reset_index(drop=True)
+```

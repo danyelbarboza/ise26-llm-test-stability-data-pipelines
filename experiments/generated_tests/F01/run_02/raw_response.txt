@@ -1,0 +1,128 @@
+```python
+import pandas as pd
+import pytest
+from ise26.targets import clean_customer_names
+
+# Helper to compute expected normalized string (mimics the behavior described)
+def _normalize_string(s):
+    import unicodedata
+    if pd.isna(s) or (isinstance(s, str) and s.strip() == ""):
+        return pd.NA
+    # Remove accents via NFKD normalization and ASCII encoding
+    nfkd = unicodedata.normalize('NFKD', str(s))
+    ascii_str = nfkd.encode('ascii', 'ignore').decode('ascii')
+    # Lowercase and collapse whitespace
+    parts = ascii_str.lower().split()
+    return ' '.join(parts)
+
+
+class TestCleanCustomerNames:
+    """Test suite for clean_customer_names."""
+
+    def test_basic_normalization(self):
+        """Test basic whitespace collapse, lowercasing, and accent removal."""
+        df = pd.DataFrame({
+            "customer_name": ["  John   Doe  ", "MARÍA", "  José  ", "ANNE-MARIE"]
+        })
+        result = clean_customer_names(df)
+        expected_col = [
+            _normalize_string("  John   Doe  "),
+            _normalize_string("MARÍA"),
+            _normalize_string("  José  "),
+            _normalize_string("ANNE-MARIE")
+        ]
+        pd.testing.assert_series_equal(
+            result["customer_name_clean"],
+            pd.Series(expected_col, name="customer_name_clean"),
+            check_dtype=False  # allow object vs string
+        )
+
+    def test_null_and_blank_values(self):
+        """Test that NaN, None, and whitespace-only become pd.NA."""
+        df = pd.DataFrame({
+            "customer_name": [pd.NA, None, "   ", "  ", ""]
+        })
+        result = clean_customer_names(df)
+        expected = pd.Series([pd.NA, pd.NA, pd.NA, pd.NA, pd.NA], name="customer_name_clean")
+        # NA dtype: use object to allow None/NaN/NA
+        pd.testing.assert_series_equal(result["customer_name_clean"], expected, check_dtype=False)
+
+    def test_preserve_original_dataframe(self):
+        """Assert that the input DataFrame is not modified."""
+        df = pd.DataFrame({"customer_name": ["Alice", "Bob"]})
+        original = df.copy()
+        result = clean_customer_names(df)
+        pd.testing.assert_frame_equal(df, original)
+
+    def test_returns_additional_column_only(self):
+        """Returned DataFrame should contain original columns plus the new column."""
+        df = pd.DataFrame({"id": [1, 2], "customer_name": ["A", "B"]})
+        result = clean_customer_names(df)
+        expected_columns = ["id", "customer_name", "customer_name_clean"]
+        assert list(result.columns) == expected_columns
+        assert len(result.columns) == 3
+
+    def test_default_parameters(self):
+        """Test that default column names are used when not specified."""
+        df = pd.DataFrame({"customer_name": ["John  Doe"]})
+        result = clean_customer_names(df)
+        assert "customer_name_clean" in result.columns
+        assert result["customer_name_clean"].iloc[0] == "john doe"
+
+    def test_custom_column_names(self):
+        """Test custom input and output column names."""
+        df = pd.DataFrame({"raw_name": ["  Alice   Wonder  "]})
+        result = clean_customer_names(df, name_col="raw_name", output_col="clean_name")
+        assert "raw_name" in result.columns
+        assert "clean_name" in result.columns
+        assert result["clean_name"].iloc[0] == "alice wonder"
+
+    def test_empty_dataframe(self):
+        """Test that an empty DataFrame is handled gracefully."""
+        df = pd.DataFrame({"customer_name": pd.Series(dtype="object")})
+        result = clean_customer_names(df)
+        assert len(result) == 0
+        assert "customer_name_clean" in result.columns
+
+    def test_multiple_spaces_and_tabs(self):
+        """Test that various whitespace characters are collapsed."""
+        df = pd.DataFrame({"customer_name": ["  hello\t world  \n", "foo   bar"]})
+        result = clean_customer_names(df)
+        expected = ["hello world", "foo bar"]
+        assert result["customer_name_clean"].tolist() == expected
+
+    def test_accent_removal(self):
+        """Test common accented characters are reduced to ASCII equivalents."""
+        df = pd.DataFrame({"customer_name": ["Café", "São Paulo", "François", "Ångström"]})
+        result = clean_customer_names(df)
+        expected = ["cafe", "sao paulo", "francois", "angstrom"]
+        assert result["customer_name_clean"].tolist() == expected
+
+    def test_duplicate_names(self):
+        """Test that duplicate names are normalized independently."""
+        df = pd.DataFrame({"customer_name": ["  John  ", "JOHN", "john"]})
+        result = clean_customer_names(df)
+        expected = ["john", "john", "john"]
+        assert result["customer_name_clean"].tolist() == expected
+
+    def test_all_nulls(self):
+        """Test DataFrame with all null values."""
+        df = pd.DataFrame({"customer_name": [pd.NA, pd.NA, pd.NA]})
+        result = clean_customer_names(df)
+        expected = pd.Series([pd.NA, pd.NA, pd.NA], name="customer_name_clean")
+        pd.testing.assert_series_equal(result["customer_name_clean"], expected, check_dtype=False)
+
+    def test_mixed_types(self):
+        """Test with non-string types (e.g., float) – should be converted to string."""
+        df = pd.DataFrame({"customer_name": [123, 45.67, True]})
+        result = clean_customer_names(df)
+        expected = ["123", "45.67", "true"]
+        assert result["customer_name_clean"].tolist() == expected
+
+    def test_leading_trailing_spaces(self):
+        """Test that leading/trailing spaces are removed."""
+        df = pd.DataFrame({"customer_name": ["  space  ", "  left", "right   "]})
+        result = clean_customer_names(df)
+        expected = ["space", "left", "right"]
+        assert result["customer_name_clean"].tolist() == expected
+```

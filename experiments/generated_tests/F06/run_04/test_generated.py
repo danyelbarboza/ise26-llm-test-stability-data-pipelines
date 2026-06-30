@@ -1,7 +1,254 @@
-"""Placeholder for a real LLM-generated pytest suite.
+import pytest
+import pandas as pd
+import numpy as np
+from ise26.targets import classify_payment_status
 
-This file is intentionally kept without executable tests until a real response
-is generated and pasted here.
-"""
 
-# GENERATED_TEST_PLACEHOLDER
+class TestClassifyPaymentStatus:
+    """Test suite for classify_payment_status function."""
+
+    # ------------------------------------------------------------------
+    # Helper method to create a basic valid DataFrame
+    # ------------------------------------------------------------------
+    @staticmethod
+    def _sample_df(overrides: dict = None) -> pd.DataFrame:
+        base = {
+            "due_date": ["2023-01-15", "2023-02-20", "2023-03-10", "2023-04-01"],
+            "paid_date": ["2023-01-10", None, "2023-03-15", None],
+            "amount": [100.0, 200.0, 300.0, 400.0],
+        }
+        df = pd.DataFrame(base)
+        if overrides:
+            df = df.assign(**overrides)
+        return df
+
+    # ------------------------------------------------------------------
+    # Tests for invalid rows
+    # ------------------------------------------------------------------
+    def test_invalid_amount_missing(self):
+        df = self._sample_df({"amount": [100.0, np.nan, 300.0, 400.0]})
+        result = classify_payment_status(df, reference_date="2023-03-01")
+        assert result["payment_status"].iloc[1] == "invalid"
+
+    def test_invalid_amount_non_numeric(self):
+        df = self._sample_df({"amount": [100.0, "abc", 300.0, 400.0]})
+        result = classify_payment_status(df, reference_date="2023-03-01")
+        assert result["payment_status"].iloc[1] == "invalid"
+
+    def test_invalid_amount_zero(self):
+        df = self._sample_df({"amount": [100.0, 0.0, 300.0, 400.0]})
+        result = classify_payment_status(df, reference_date="2023-03-01")
+        assert result["payment_status"].iloc[1] == "invalid"
+
+    def test_invalid_amount_negative(self):
+        df = self._sample_df({"amount": [100.0, -50.0, 300.0, 400.0]})
+        result = classify_payment_status(df, reference_date="2023-03-01")
+        assert result["payment_status"].iloc[1] == "invalid"
+
+    def test_invalid_due_date(self):
+        df = self._sample_df({"due_date": ["2023-01-15", "not-a-date", "2023-03-10", "2023-04-01"]})
+        result = classify_payment_status(df, reference_date="2023-03-01")
+        assert result["payment_status"].iloc[1] == "invalid"
+
+    def test_invalid_paid_date_provided(self):
+        # paid_date is not null but unparseable
+        df = self._sample_df({"paid_date": ["2023-01-10", "bad-date", "2023-03-15", None]})
+        result = classify_payment_status(df, reference_date="2023-03-01")
+        assert result["payment_status"].iloc[1] == "invalid"
+
+    def test_invalid_paid_date_blank_string(self):
+        # blank string should be treated as missing, not invalid
+        df = self._sample_df({"paid_date": ["2023-01-10", "", "2023-03-15", None]})
+        result = classify_payment_status(df, reference_date="2023-03-01")
+        # row index 1: amount and due_date fine, paid_date blank -> unpaid -> pending (reference 2023-03-01 > due 2023-02-20? actually due 2023-02-20, reference 2023-03-01 > due, so overdue)
+        assert result["payment_status"].iloc[1] == "overdue"
+
+    def test_invalid_multiple_reasons(self):
+        df = self._sample_df({"amount": [np.nan, 200.0, None, 400.0], "due_date": ["2023-01-15", "bad", "2023-03-10", "2023-04-01"]})
+        result = classify_payment_status(df, reference_date="2023-03-01")
+        assert result["payment_status"].iloc[0] == "invalid"
+        assert result["payment_status"].iloc[1] == "invalid"
+
+    # ------------------------------------------------------------------
+    # Tests for paid on time
+    # ------------------------------------------------------------------
+    def test_paid_on_time_exact(self):
+        df = pd.DataFrame({
+            "due_date": ["2023-01-15"],
+            "paid_date": ["2023-01-15"],
+            "amount": [100.0]
+        })
+        result = classify_payment_status(df, reference_date="2023-03-01")
+        assert result["payment_status"].iloc[0] == "paid_on_time"
+
+    def test_paid_on_time_before_due(self):
+        df = pd.DataFrame({
+            "due_date": ["2023-01-15"],
+            "paid_date": ["2023-01-10"],
+            "amount": [100.0]
+        })
+        result = classify_payment_status(df, reference_date="2023-03-01")
+        assert result["payment_status"].iloc[0] == "paid_on_time"
+
+    # ------------------------------------------------------------------
+    # Tests for paid late
+    # ------------------------------------------------------------------
+    def test_paid_late(self):
+        df = pd.DataFrame({
+            "due_date": ["2023-01-15"],
+            "paid_date": ["2023-01-20"],
+            "amount": [100.0]
+        })
+        result = classify_payment_status(df, reference_date="2023-03-01")
+        assert result["payment_status"].iloc[0] == "paid_late"
+
+    # ------------------------------------------------------------------
+    # Tests for overdue (unpaid)
+    # ------------------------------------------------------------------
+    def test_overdue(self):
+        df = pd.DataFrame({
+            "due_date": ["2023-01-15"],
+            "paid_date": [None],
+            "amount": [100.0]
+        })
+        # reference_date after due_date
+        result = classify_payment_status(df, reference_date="2023-03-01")
+        assert result["payment_status"].iloc[0] == "overdue"
+
+    def test_overdue_with_blank_paid_string(self):
+        df = pd.DataFrame({
+            "due_date": ["2023-01-15"],
+            "paid_date": ["   "],
+            "amount": [100.0]
+        })
+        result = classify_payment_status(df, reference_date="2023-03-01")
+        assert result["payment_status"].iloc[0] == "overdue"
+
+    # ------------------------------------------------------------------
+    # Tests for pending (unpaid, not yet due)
+    # ------------------------------------------------------------------
+    def test_pending_exact_future(self):
+        df = pd.DataFrame({
+            "due_date": ["2023-05-01"],
+            "paid_date": [None],
+            "amount": [100.0]
+        })
+        # reference_date <= due_date -> pending
+        result = classify_payment_status(df, reference_date="2023-04-01")
+        assert result["payment_status"].iloc[0] == "pending"
+
+    def test_pending_equal_reference(self):
+        df = pd.DataFrame({
+            "due_date": ["2023-04-01"],
+            "paid_date": [None],
+            "amount": [100.0]
+        })
+        result = classify_payment_status(df, reference_date="2023-04-01")
+        assert result["payment_status"].iloc[0] == "pending"
+
+    # ------------------------------------------------------------------
+    # Test empty DataFrame
+    # ------------------------------------------------------------------
+    def test_empty_dataframe(self):
+        df = pd.DataFrame(columns=["due_date", "paid_date", "amount"])
+        result = classify_payment_status(df, reference_date="2023-03-01")
+        assert result.empty
+        assert "payment_status" in result.columns
+
+    # ------------------------------------------------------------------
+    # Test handling of various reference_date types
+    # ------------------------------------------------------------------
+    def test_reference_date_as_string(self):
+        df = self._sample_df()
+        result1 = classify_payment_status(df, reference_date="2023-03-01")
+        result2 = classify_payment_status(df, reference_date=pd.Timestamp("2023-03-01"))
+        pd.testing.assert_frame_equal(result1, result2)
+
+    def test_reference_date_as_datetime(self):
+        df = self._sample_df()
+        result = classify_payment_status(df, reference_date=pd.to_datetime("2023-03-01"))
+        assert result["payment_status"].iloc[3] == "pending"  # due 2023-04-01 > ref
+
+    def test_reference_date_invalid_raises(self):
+        df = self._sample_df()
+        with pytest.raises(ValueError, match="reference_date must be a valid date-like value"):
+            classify_payment_status(df, reference_date="not-a-date")
+
+    # ------------------------------------------------------------------
+    # Test custom column names
+    # ------------------------------------------------------------------
+    def test_custom_column_names(self):
+        df = pd.DataFrame({
+            "dd": ["2023-01-15", "2023-02-20"],
+            "pd": ["2023-01-10", None],
+            "amt": [100.0, 200.0]
+        })
+        result = classify_payment_status(
+            df,
+            reference_date="2023-03-01",
+            due_date_col="dd",
+            paid_date_col="pd",
+            amount_col="amt",
+            output_col="status"
+        )
+        assert list(result["status"]) == ["paid_on_time", "overdue"]
+
+    # ------------------------------------------------------------------
+    # Test that original DataFrame is not modified
+    # ------------------------------------------------------------------
+    def test_original_dataframe_not_modified(self):
+        original = self._sample_df()
+        df_copy = original.copy()
+        classify_payment_status(df_copy, reference_date="2023-03-01")
+        pd.testing.assert_frame_equal(df_copy, original)
+
+    # ------------------------------------------------------------------
+    # Test duplicates
+    # ------------------------------------------------------------------
+    def test_duplicate_rows(self):
+        df = pd.DataFrame({
+            "due_date": ["2023-01-15", "2023-01-15"],
+            "paid_date": [None, None],
+            "amount": [100.0, 100.0]
+        })
+        result = classify_payment_status(df, reference_date="2023-03-01")
+        assert all(result["payment_status"] == "overdue")
+        assert len(result) == 2
+
+    # ------------------------------------------------------------------
+    # Test mixed classification in a single DataFrame
+    # ------------------------------------------------------------------
+    def test_mixed_classifications(self):
+        df = pd.DataFrame({
+            "due_date": ["2023-01-15", "2023-02-20", "2023-03-10", "2023-04-01", "2023-05-01"],
+            "paid_date": [None, "2023-02-15", None, None, "2023-05-10"],
+            "amount": [100.0, 200.0, 300.0, 0.0, 500.0]
+        })
+        result = classify_payment_status(df, reference_date="2023-04-15")
+        expected = ["overdue", "paid_on_time", "pending", "invalid", "paid_late"]
+        assert list(result["payment_status"]) == expected
+
+    # ------------------------------------------------------------------
+    # Test edge: very large date difference (infinity not expected)
+    # ------------------------------------------------------------------
+    def test_large_date_difference(self):
+        df = pd.DataFrame({
+            "due_date": ["1970-01-01", "2100-12-31"],
+            "paid_date": [None, None],
+            "amount": [100.0, 100.0]
+        })
+        result = classify_payment_status(df, reference_date="2023-06-01")
+        assert result["payment_status"].iloc[0] == "overdue"
+        assert result["payment_status"].iloc[1] == "pending"
+
+    # ------------------------------------------------------------------
+    # Test timezone-naive datetimes are handled (no timezone)
+    # ------------------------------------------------------------------
+    def test_datetime_objects(self):
+        df = pd.DataFrame({
+            "due_date": [pd.Timestamp("2023-01-15")],
+            "paid_date": [pd.Timestamp("2023-01-10")],
+            "amount": [100.0]
+        })
+        result = classify_payment_status(df, reference_date=pd.Timestamp("2023-03-01"))
+        assert result["payment_status"].iloc[0] == "paid_on_time"

@@ -21,7 +21,6 @@ FUNCTIONS_METADATA_PATH = PROJECT_ROOT / "src" / "ise26" / "metadata" / "functio
 BUGS_METADATA_PATH = PROJECT_ROOT / "src" / "ise26" / "metadata" / "bugs.json"
 GENERATED_TESTS_ROOT = PROJECT_ROOT / "experiments" / "generated_tests"
 RAW_RESULTS_PATH = PROJECT_ROOT / "results" / "raw" / "generated_tests_results.csv"
-PLACEHOLDER_MARKER = "GENERATED_TEST_PLACEHOLDER"
 RUN_IDS = [f"run_{index:02d}" for index in range(1, 6)]
 
 
@@ -191,11 +190,8 @@ def detect_test_presence(test_file: Path) -> tuple[bool, str]:
             status_payload = json.load(file_handle)
 
         status_value = str(status_payload.get("status", "")).strip()
-        if status_value in {"not_generated", "api_error"}:
+        if status_value in {"not_generated", "api_error", "placeholder"}:
             return False, status_value
-
-    if PLACEHOLDER_MARKER in content:
-        return False, "placeholder"
 
     # A lightweight pattern check is enough here because the repository should
     # not execute arbitrary placeholder files when they do not actually define

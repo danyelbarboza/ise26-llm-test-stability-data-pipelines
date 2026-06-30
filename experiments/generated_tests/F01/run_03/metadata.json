@@ -1,0 +1,68 @@
+{
+  "function_id": "F01",
+  "function_name": "clean_customer_names",
+  "run_id": "run_03",
+  "provider": "DeepSeek",
+  "model": "deepseek-v4-flash",
+  "temperature": 0.7,
+  "top_p": 1.0,
+  "max_tokens": 4096,
+  "timestamp_utc": "2026-06-30T01:42:04Z",
+  "prompt_hash": "d233dea0095894d13d81cde66c3450c4661028fc9f4dbe79f4756a03d6bed8b5",
+  "function_code_hash": "e386e5779e93e420f3c61a9ed553de5a097181036d473f1526406b0f9b9da628",
+  "correct_module_hash": "cc5363eb1f43425f3467a5b46a080cbd9d49342ceddc631636eed6cf0015e764",
+  "config_hash": "52276bf15ce04c15f38fb6e588f94f47c8719e8c1a7f4b06a3f435a1aec9636a",
+  "response_hash": "d920562f5ce01168681c50c4d2150bd7ec27e81762ef91ba0f0d3c24fb061b09",
+  "syntax_valid": true,
+  "overwrite_used": false,
+  "success": true,
+  "error": null,
+  "usage": {
+    "completion_tokens": 1860,
+    "prompt_tokens": 687,
+    "total_tokens": 2547,
+    "completion_tokens_details": {
+      "accepted_prediction_tokens": null,
+      "audio_tokens": null,
+      "reasoning_tokens": 145,
+      "rejected_prediction_tokens": null
+    },
+    "prompt_tokens_details": {
+      "audio_tokens": null,
+      "cached_tokens": 640
+    },
+    "prompt_cache_hit_tokens": 640,
+    "prompt_cache_miss_tokens": 47
+  },
+  "generated_by": "LLM-generated pytest suite for the ISE26 experiment",
+  "request_messages": [
+    {
+      "role": "system",
+      "content": "You generate pytest suites for Python data-transformation functions. Return only valid Python code for the test file and do not include Markdown fences."
+    },
+    {
+      "role": "user",
+      "content": "# Template oficial de geração de testes do ISE26\n\nGere uma suíte de testes em `pytest` para a função Python descrita abaixo.\n\nRequisitos obrigatórios:\n\n- Importe a função somente a partir de `ise26.targets`.\n- Use `pytest`.\n- Não altere, não reimplemente e não envolva a função original.\n- Não use API externa, arquivos externos, rede, banco de dados ou recursos fora do próprio teste.\n- Crie os `DataFrame`s sintéticos necessários dentro do próprio arquivo de teste.\n- Não importe `tests.fixtures` nem qualquer fixture interna do repositório.\n- Cubra casos comuns e casos de borda.\n- Quando fizer sentido, considere valores nulos, duplicatas, datas, schema e regras de negócio.\n- Verifique comportamento por meio de valores retornados e estruturas produzidas pela função.\n- Retorne apenas código Python do arquivo de teste.\n- Não inclua cercas Markdown.\n- Não inclua explicações fora do código.\n\nImportação esperada:\n\n```python\nfrom ise26.targets import clean_customer_names\n```\n\nMetadados da função:\n\n- ID da função: `F01`\n- Nome da função: `clean_customer_names`\n- Descrição resumida: `Standardize customer names into a new normalized column without mutating the original DataFrame.`\n\nDocstring da função:\n\n```text\nStandardize customer names into a new normalized column.\n\nThe transformation collapses repeated whitespace, lowercases the content,\nremoves accent marks, and maps null or blank values to ``pd.NA``. The\noriginal input DataFrame is preserved.\n\nArgs:\n    df: Source DataFrame containing the customer name column.\n    name_col: Name of the input column with raw customer names.\n    output_col: Name of the output column that will store normalized names.\n\nReturns:\n    A new DataFrame containing the additional normalized name column.\n```\n\nComportamento esperado:\n\n`Receive a DataFrame, create a new normalized name column, remove extra spaces, lowercase values, remove accents, convert null or blank values to pandas.NA, and preserve the original DataFrame unchanged.`\n\nCódigo da função correta:\n\n```python\ndef clean_customer_names(\n    df: pd.DataFrame,\n    name_col: str = \"customer_name\",\n    output_col: str = \"customer_name_clean\",\n) -> pd.DataFrame:\n    \"\"\"Standardize customer names into a new normalized column.\n\n    The transformation collapses repeated whitespace, lowercases the content,\n    removes accent marks, and maps null or blank values to ``pd.NA``. The\n    original input DataFrame is preserved.\n\n    Args:\n        df: Source DataFrame containing the customer name column.\n        name_col: Name of the input column with raw customer names.\n        output_col: Name of the output column that will store normalized names.\n\n    Returns:\n        A new DataFrame containing the additional normalized name column.\n    \"\"\"\n\n    result = _clone_dataframe(df)\n    result[output_col] = result[name_col].apply(_normalize_optional_string)\n    return result\n```\n"
+    }
+  ],
+  "parameters": {
+    "model": "deepseek-v4-flash",
+    "temperature": 0.7,
+    "top_p": 1.0,
+    "max_tokens": 4096,
+    "stream": false,
+    "base_url": "https://api.deepseek.com"
+  },
+  "python_version": "3.11.9",
+  "python_implementation": "CPython",
+  "dependency_versions": {
+    "openai": "2.44.0",
+    "python-dotenv": "1.2.2",
+    "pandas": "3.0.4",
+    "pytest": "8.4.2"
+  },
+  "git_commit": "e6268d8d25123b70c240f570276173ce4a63e250",
+  "command_executed": "C:\\Users\\User\\AppData\\Local\\Microsoft\\WindowsApps\\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\\python.exe scripts/generate_llm_tests.py --execute",
+  "extraction_mode": "raw_text",
+  "syntax_error": null
+}

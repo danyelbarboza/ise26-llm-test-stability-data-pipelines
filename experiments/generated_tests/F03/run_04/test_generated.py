@@ -1,7 +1,150 @@
-"""Placeholder for a real LLM-generated pytest suite.
+import pandas as pd
+import pytest
+from ise26.targets import calculate_monthly_revenue
 
-This file is intentionally kept without executable tests until a real response
-is generated and pasted here.
-"""
 
-# GENERATED_TEST_PLACEHOLDER
+def test_basic_aggregation():
+    """Test that the function correctly aggregates revenue by month,
+    excludes canceled orders, and handles normal statuses."""
+    data = {
+        "order_date": ["2024-01-05", "2024-01-15", "2024-01-20", "2024-02-10"],
+        "amount": [100.0, 200.0, 50.0, 150.0],
+        "status": ["completed", "cancelled", "delivered", "canceled"],
+    }
+    df = pd.DataFrame(data)
+    result = calculate_monthly_revenue(df)
+    expected = pd.DataFrame({
+        "month": ["2024-01", "2024-02"],
+        "revenue": [150.0, 0.0],
+    })
+    pd.testing.assert_frame_equal(result, expected)
+
+
+def test_status_normalization_variants():
+    """Test that various case, whitespace, and language variants of canceled statuses are excluded."""
+    data = {
+        "order_date": ["2024-03-01", "2024-03-01", "2024-03-01", "2024-03-01"],
+        "amount": [10.0, 20.0, 30.0, 40.0],
+        "status": [" Cancelled ", "CANCELADO", "  canceled  ", "completed"],
+    }
+    df = pd.DataFrame(data)
+    result = calculate_monthly_revenue(df)
+    expected = pd.DataFrame({
+        "month": ["2024-03"],
+        "revenue": [40.0],
+    })
+    pd.testing.assert_frame_equal(result, expected)
+
+
+def test_invalid_dates_ignored():
+    """Test that rows with invalid or missing dates are excluded."""
+    data = {
+        "order_date": ["2024-04-01", "not_a_date", None, "2024-04-15"],
+        "amount": [50.0, 60.0, 70.0, 80.0],
+        "status": ["completed", "completed", "completed", "canceled"],
+    }
+    df = pd.DataFrame(data)
+    result = calculate_monthly_revenue(df)
+    expected = pd.DataFrame({
+        "month": ["2024-04"],
+        "revenue": [50.0],
+    })
+    pd.testing.assert_frame_equal(result, expected)
+
+
+def test_invalid_amounts_treated_as_zero():
+    """Test that non-numeric or missing amounts are treated as zero."""
+    data = {
+        "order_date": ["2024-05-01", "2024-05-01", "2024-05-01"],
+        "amount": [100.0, "abc", None],
+        "status": ["completed", "completed", "completed"],
+    }
+    df = pd.DataFrame(data)
+    result = calculate_monthly_revenue(df)
+    expected = pd.DataFrame({
+        "month": ["2024-05"],
+        "revenue": [100.0],
+    })
+    pd.testing.assert_frame_equal(result, expected)
+
+
+def test_missing_status_not_treated_as_canceled():
+    """Test that missing status (NaN) does not exclude the order."""
+    data = {
+        "order_date": ["2024-06-01", "2024-06-15"],
+        "amount": [200.0, 300.0],
+        "status": [None, "completed"],
+    }
+    df = pd.DataFrame(data)
+    result = calculate_monthly_revenue(df)
+    expected = pd.DataFrame({
+        "month": ["2024-06"],
+        "revenue": [500.0],
+    })
+    pd.testing.assert_frame_equal(result, expected)
+
+
+def test_duplicate_months_aggregated():
+    """Test that multiple orders in the same month are summed correctly."""
+    data = {
+        "order_date": ["2024-07-01", "2024-07-10", "2024-07-20"],
+        "amount": [10.0, 20.0, 30.0],
+        "status": ["completed", "delivered", "shipped"],
+    }
+    df = pd.DataFrame(data)
+    result = calculate_monthly_revenue(df)
+    expected = pd.DataFrame({
+        "month": ["2024-07"],
+        "revenue": [60.0],
+    })
+    pd.testing.assert_frame_equal(result, expected)
+
+
+def test_empty_dataframe():
+    """Test that an empty DataFrame returns an empty DataFrame with correct columns."""
+    df = pd.DataFrame(columns=["order_date", "amount", "status"])
+    result = calculate_monthly_revenue(df)
+    assert result.empty
+    assert list(result.columns) == ["month", "revenue"]
+
+
+def test_custom_column_names():
+    """Test that the function works with different column names."""
+    data = {
+        "date": ["2024-08-01", "2024-08-03"],
+        "price": [150.0, 250.0],
+        "state": ["completed", "cancelado"],
+    }
+    df = pd.DataFrame(data)
+    result = calculate_monthly_revenue(df, date_col="date", amount_col="price", status_col="state")
+    expected = pd.DataFrame({
+        "month": ["2024-08"],
+        "revenue": [150.0],
+    })
+    pd.testing.assert_frame_equal(result, expected)
+
+
+def test_output_is_sorted_by_month():
+    """Test that the result is sorted by month in ascending order."""
+    data = {
+        "order_date": ["2024-12-01", "2024-01-15", "2024-11-01", "2024-03-01"],
+        "amount": [10.0, 20.0, 30.0, 40.0],
+        "status": ["completed", "completed", "completed", "completed"],
+    }
+    df = pd.DataFrame(data)
+    result = calculate_monthly_revenue(df)
+    months = result["month"].tolist()
+    assert months == sorted(months), f"Months are not sorted: {months}"
+
+
+def test_output_columns_and_index():
+    """Test that the output DataFrame has exactly 'month' and 'revenue' columns and a reset index."""
+    data = {
+        "order_date": ["2024-02-01", "2024-03-01"],
+        "amount": [100.0, 200.0],
+        "status": ["completed", "completed"],
+    }
+    df = pd.DataFrame(data)
+    result = calculate_monthly_revenue(df)
+    assert list(result.columns) == ["month", "revenue"]
+    assert list(result.index) == [0, 1], "Index should be reset to 0,1"

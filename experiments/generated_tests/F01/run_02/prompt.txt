@@ -1,0 +1,80 @@
+# Template oficial de geração de testes do ISE26
+
+Gere uma suíte de testes em `pytest` para a função Python descrita abaixo.
+
+Requisitos obrigatórios:
+
+- Importe a função somente a partir de `ise26.targets`.
+- Use `pytest`.
+- Não altere, não reimplemente e não envolva a função original.
+- Não use API externa, arquivos externos, rede, banco de dados ou recursos fora do próprio teste.
+- Crie os `DataFrame`s sintéticos necessários dentro do próprio arquivo de teste.
+- Não importe `tests.fixtures` nem qualquer fixture interna do repositório.
+- Cubra casos comuns e casos de borda.
+- Quando fizer sentido, considere valores nulos, duplicatas, datas, schema e regras de negócio.
+- Verifique comportamento por meio de valores retornados e estruturas produzidas pela função.
+- Retorne apenas código Python do arquivo de teste.
+- Não inclua cercas Markdown.
+- Não inclua explicações fora do código.
+
+Importação esperada:
+
+```python
+from ise26.targets import clean_customer_names
+```
+
+Metadados da função:
+
+- ID da função: `F01`
+- Nome da função: `clean_customer_names`
+- Descrição resumida: `Standardize customer names into a new normalized column without mutating the original DataFrame.`
+
+Docstring da função:
+
+```text
+Standardize customer names into a new normalized column.
+
+The transformation collapses repeated whitespace, lowercases the content,
+removes accent marks, and maps null or blank values to ``pd.NA``. The
+original input DataFrame is preserved.
+
+Args:
+    df: Source DataFrame containing the customer name column.
+    name_col: Name of the input column with raw customer names.
+    output_col: Name of the output column that will store normalized names.
+
+Returns:
+    A new DataFrame containing the additional normalized name column.
+```
+
+Comportamento esperado:
+
+`Receive a DataFrame, create a new normalized name column, remove extra spaces, lowercase values, remove accents, convert null or blank values to pandas.NA, and preserve the original DataFrame unchanged.`
+
+Código da função correta:
+
+```python
+def clean_customer_names(
+    df: pd.DataFrame,
+    name_col: str = "customer_name",
+    output_col: str = "customer_name_clean",
+) -> pd.DataFrame:
+    """Standardize customer names into a new normalized column.
+
+    The transformation collapses repeated whitespace, lowercases the content,
+    removes accent marks, and maps null or blank values to ``pd.NA``. The
+    original input DataFrame is preserved.
+
+    Args:
+        df: Source DataFrame containing the customer name column.
+        name_col: Name of the input column with raw customer names.
+        output_col: Name of the output column that will store normalized names.
+
+    Returns:
+        A new DataFrame containing the additional normalized name column.
+    """
+
+    result = _clone_dataframe(df)
+    result[output_col] = result[name_col].apply(_normalize_optional_string)
+    return result
+```

@@ -1,7 +1,235 @@
-"""Placeholder for a real LLM-generated pytest suite.
+import pandas as pd
+import pytest
+from ise26.targets import join_customers_orders
 
-This file is intentionally kept without executable tests until a real response
-is generated and pasted here.
-"""
 
-# GENERATED_TEST_PLACEHOLDER
+def test_basic_matched():
+    """Both DataFrames share keys; all rows should be matched."""
+    customers = pd.DataFrame(
+        {"customer_id": [1, 2, 3], "name": ["Alice", "Bob", "Charlie"]}
+    )
+    orders = pd.DataFrame(
+        {"customer_id": [1, 2, 3], "amount": [10.5, 20.0, 30.0]}
+    )
+    result = join_customers_orders(customers, orders)
+    assert len(result) == 3
+    assert result["record_status"].eq("matched").all()
+    assert "name" in result.columns
+    assert "amount" in result.columns
+    assert result.index.tolist() == list(range(3))
+
+
+def test_customers_without_orders():
+    """Customers that have no matching orders."""
+    customers = pd.DataFrame({"customer_id": [1, 2, 3], "name": ["A", "B", "C"]})
+    orders = pd.DataFrame({"customer_id": [2, 4], "amount": [10.0, 20.0]})
+    result = join_customers_orders(customers, orders)
+    # Customer 1 and 3 have no order; order 4 has no customer
+    assert len(result) == 4  # 2 matched? Wait: customer 2 matched with order 2 -> both; order 4 unmatched; customers 1,3 unmatched
+    # Actually: customers 1,2,3; orders 2,4 -> matched: customer2-order2; unmatched customer: 1,3; unmatched order:4 => total 4
+    statuses = result.set_index("customer_id")["record_status"].to_dict()
+    assert statuses[2] == "matched"
+    assert statuses[1] == "customer_without_order"
+    assert statuses[3] == "customer_without_order"
+    # order 4 appears in result with customer_id=4, record_status='order_without_customer'
+    order4_row = result[result["customer_id"] == 4].iloc[0]
+    assert order4_row["record_status"] == "order_without_customer"
+    assert pd.isna(order4_row["name"])
+
+
+def test_orders_without_customers():
+    """Orders with customer_id not present in customers."""
+    customers = pd.DataFrame({"customer_id": [1, 2], "name": ["X", "Y"]})
+    orders = pd.DataFrame({"customer_id": [2, 3, 4], "amount": [1.0, 2.0, 3.0]})
+    result = join_customers_orders(customers, orders)
+    assert len(result) == 4  # matched: 2; unmatched customer: 1; unmatched orders: 3,4
+    statuses = result.set_index("customer_id")["record_status"].to_dict()
+    assert statuses[2] == "matched"
+    assert statuses[1] == "customer_without_order"
+    assert statuses[3] == "order_without_customer"
+    assert statuses[4] == "order_without_customer"
+
+
+def test_null_keys_customers():
+    """Customer rows with null customer_id should be marked as customer_without_order."""
+    customers = pd.DataFrame(
+        {"customer_id": [1, None, 2], "name": ["A", "B", "C"]}
+    )
+    orders = pd.DataFrame({"customer_id": [1, 2, 3], "amount": [10.0, 20.0, 30.0]})
+    result = join_customers_orders(customers, orders)
+    # Customers: id=1 (matched), id=None (customer_without_order), id=2 (matched+order)
+    # Orders: id=1 matched, id=2 matched, id=3 unmatched
+    # Total rows: matched: (1,1) and (2,2) -> 2 rows; customer without order: null key row -> 1; order without customer: id=3 -> 1 => total 4
+    assert len(result) == 4
+    # Find the null key row: customer_id should be NaN
+    null_cust = result[result["customer_id"].isna()]
+    assert len(null_cust) == 1
+    assert null_cust["record_status"].iloc[0] == "customer_without_order"
+    assert null_cust["name"].iloc[0] == "B"
+
+
+def test_null_keys_orders():
+    """Order rows with null customer_id should be marked as order_without_customer."""
+    customers = pd.DataFrame({"customer_id": [1, 2], "name": ["A", "B"]})
+    orders = pd.DataFrame(
+        {"customer_id": [1, None, 2], "amount": [10.0, 20.0, 30.0]}
+    )
+    result = join_customers_orders(customers, orders)
+    # Customers: 1,2; Orders: 1 (matched), None (order_without_customer), 2 (matched)
+    # Matched: (1,1) and (2,2) => 2; unmatched order: null => 1; no unmatched customer => total 3
+    assert len(result) == 3
+    null_order = result[result["amount"] == 20.0]
+    assert len(null_order) == 1
+    assert null_order["record_status"].iloc[0] == "order_without_customer"
+    assert pd.isna(null_order["customer_id"].iloc[0])
+
+
+def test_mixed_statuses_and_nulls():
+    """Combine matched, unmatched, and null keys in both DataFrames."""
+    customers = pd.DataFrame(
+        {"customer_id": [1, None, 3, 4], "name": ["A", "B", "C", "D"]}
+    )
+    orders = pd.DataFrame(
+        {"customer_id": [1, 2, None, 4], "amount": [100, 200, 300, 400]}
+    )
+    result = join_customers_orders(customers, orders)
+    # Customers: 1 matched, null -> cust_without_order, 3 cust_without_order, 4 matched
+    # Orders: 1 matched, 2 order_without_customer, null -> order_without_customer, 4 matched
+    # Matched rows: (1,1) and (4,4) => 2
+    # Customer without order: null-customer, cust 3 => 2
+    # Order without customer: null-order, cust 2 => 2
+    # Total: 6
+    assert len(result) == 6
+    # Check record_status distribution
+    status_counts = result["record_status"].value_counts().to_dict()
+    assert status_counts.get("matched") == 2
+    assert status_counts.get("customer_without_order") == 2
+    assert status_counts.get("order_without_customer") == 2
+
+
+def test_duplicate_keys():
+    """Multiple rows with same customer_id in both DataFrames."""
+    customers = pd.DataFrame(
+        {"customer_id": [1, 1, 2], "name": ["A", "A2", "B"]}
+    )
+    orders = pd.DataFrame(
+        {"customer_id": [1, 1, 3], "amount": [10, 20, 30]}
+    )
+    result = join_customers_orders(customers, orders)
+    # Full outer join on customer_id: customer 1 has 2 rows, orders 1 has 2 rows -> 4 combinations
+    # customer 2 unmatched, order 3 unmatched
+    # So total = 4 + 1 + 1 = 6
+    assert len(result) == 6
+    matched1 = result[result["customer_id"] == 1]
+    assert len(matched1) == 4
+    assert matched1["record_status"].eq("matched").all()
+    # Check internal columns are not present
+    assert "_customer_source_order" not in result.columns
+    assert "_order_source_order" not in result.columns
+    assert "_sort_order" not in result.columns
+    assert "_merge" not in result.columns
+
+
+def test_empty_dataframes():
+    """Both DataFrames empty should produce empty result."""
+    customers = pd.DataFrame(columns=["customer_id", "name"])
+    orders = pd.DataFrame(columns=["customer_id", "amount"])
+    result = join_customers_orders(customers, orders)
+    assert isinstance(result, pd.DataFrame)
+    assert len(result) == 0
+
+
+def test_empty_customers():
+    """Empty customers, non-empty orders."""
+    customers = pd.DataFrame(columns=["customer_id", "name"])
+    orders = pd.DataFrame({"customer_id": [1, 2], "amount": [10, 20]})
+    result = join_customers_orders(customers, orders)
+    assert len(result) == 2
+    assert result["record_status"].eq("order_without_customer").all()
+    assert pd.isna(result["name"]).all()
+
+
+def test_empty_orders():
+    """Non-empty customers, empty orders."""
+    customers = pd.DataFrame({"customer_id": [1, 2], "name": ["A", "B"]})
+    orders = pd.DataFrame(columns=["customer_id", "amount"])
+    result = join_customers_orders(customers, orders)
+    assert len(result) == 2
+    assert result["record_status"].eq("customer_without_order").all()
+    assert pd.isna(result["amount"]).all()
+
+
+def test_different_column_names():
+    """Ensure extra columns in one source appear in result with NaN for missing rows."""
+    customers = pd.DataFrame({"customer_id": [1, 2], "name": ["A", "B"], "city": ["NY", "LA"]})
+    orders = pd.DataFrame({"customer_id": [1, 3], "amount": [100, 200]})
+    result = join_customers_orders(customers, orders)
+    # Matched: customer 1; unmatched customer: 2; unmatched order: 3
+    assert "city" in result.columns
+    assert "amount" in result.columns
+    # Customer 2 should have city but no amount
+    assert result[result["customer_id"] == 2]["city"].iloc[0] == "LA"
+    assert pd.isna(result[result["customer_id"] == 2]["amount"].iloc[0])
+    # Order 3 should have amount but no city
+    assert result[result["customer_id"] == 3]["city"].isna().all()
+    assert result[result["customer_id"] == 3]["amount"].iloc[0] == 200
+
+
+def test_original_dataframes_unchanged():
+    """The function must not modify the input DataFrames."""
+    customers_orig = pd.DataFrame({"customer_id": [1, 2], "name": ["A", "B"]})
+    orders_orig = pd.DataFrame({"customer_id": [1, 3], "amount": [100, 200]})
+    customers_copy = customers_orig.copy()
+    orders_copy = orders_orig.copy()
+    _ = join_customers_orders(customers_orig, orders_orig)
+    pd.testing.assert_frame_equal(customers_orig, customers_copy)
+    pd.testing.assert_frame_equal(orders_orig, orders_copy)
+
+
+def test_sort_order_reset_index():
+    """Result should be sorted deterministically and index reset."""
+    customers = pd.DataFrame(
+        {"customer_id": [3, 1, 2], "name": ["C", "A", "B"]}
+    )
+    orders = pd.DataFrame(
+        {"customer_id": [2, 1, 3], "amount": [20, 10, 30]}
+    )
+    result = join_customers_orders(customers, orders)
+    # After full outer join, sorting uses internal columns -> deterministic.
+    # Check that index is consecutive starting from 0.
+    assert result.index.equals(pd.RangeIndex(len(result)))
+    # Check that the first row (if matched) has some known order
+    # Because sorting is stable and uses internal ordering, we can check a pattern.
+    # The first customer in customers (order 0) is customer 3.
+    # In orders, customer 3 appears as third row (order 2).
+    # Sorting by _customer_source_order (0), _order_source_order (2) -> the matched row for customer 3 should appear early.
+    # But also unmatched rows have NaN in one of these columns so they are placed after.
+    # We'll just verify that the result is sorted and no duplicate index.
+    assert all(result.index[i] < result.index[i + 1] for i in range(len(result) - 1))  # not needed but okay
+
+
+def test_custom_key_column():
+    """Use a different key column name."""
+    customers = pd.DataFrame({"cust_key": [1, 2], "name": ["A", "B"]})
+    orders = pd.DataFrame({"cust_key": [2, 3], "amount": [10, 20]})
+    result = join_customers_orders(customers, orders, customer_key="cust_key")
+    assert len(result) == 3
+    assert "cust_key" in result.columns
+    # matched key=2; customer_without_order: key=1; order_without_customer: key=3
+    assert result[result["cust_key"] == 2]["record_status"].iloc[0] == "matched"
+    assert result[result["cust_key"] == 1]["record_status"].iloc[0] == "customer_without_order"
+    assert result[result["cust_key"] == 3]["record_status"].iloc[0] == "order_without_customer"
+
+
+def test_all_nulls_on_both_sides():
+    """Both DataFrames have only null keys should result in all unmatched."""
+    customers = pd.DataFrame({"customer_id": [None, None], "name": ["A", "B"]})
+    orders = pd.DataFrame({"customer_id": [None, None], "amount": [10, 20]})
+    result = join_customers_orders(customers, orders)
+    # All rows are unmatched because null keys are not joined.
+    # Customers: 2 rows -> customer_without_order; Orders: 2 rows -> order_without_customer -> total 4
+    assert len(result) == 4
+    cust_status = result[result["name"].notna()]["record_status"]
+    assert (cust_status == "customer_without_order").all()
+    order_status = result[result["amount"].notna()]["record_status"]
+    assert (order_status == "order_without_customer").all()
