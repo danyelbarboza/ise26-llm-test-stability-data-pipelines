@@ -25,6 +25,12 @@ def compute_json_hash(data: Any) -> str:
     return compute_text_hash(serialized)
 
 
+def compute_file_hash(path: Path) -> str:
+    """Return the SHA-256 hash of a UTF-8 text file."""
+
+    return compute_text_hash(path.read_text(encoding="utf-8"))
+
+
 def get_current_utc_timestamp() -> str:
     """Return the current UTC timestamp in ISO 8601 format."""
 

@@ -7,12 +7,18 @@ from pathlib import Path
 import subprocess
 import sys
 
+import pandas as pd
 import pytest
 
 from ise26.llm.code_extraction import extract_python_code
 from ise26.llm.deepseek_client import require_api_key
 from ise26.llm.prompt_builder import build_prompt_bundle
-from ise26.llm.reproducibility import compute_json_hash, compute_text_hash, load_json_configuration
+from ise26.llm.reproducibility import (
+    compute_file_hash,
+    compute_json_hash,
+    compute_text_hash,
+    load_json_configuration,
+)
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -90,6 +96,16 @@ def test_compute_hashes_are_deterministic() -> None:
     assert first_json_hash == second_json_hash
 
 
+def test_compute_file_hash_matches_correct_module_contents() -> None:
+    """Verify that hashing the full correct module stays deterministic."""
+
+    correct_module_path = PROJECT_ROOT / "src" / "ise26" / "implementations" / "correct.py"
+
+    assert compute_file_hash(correct_module_path) == compute_text_hash(
+        correct_module_path.read_text(encoding="utf-8")
+    )
+
+
 def test_load_json_configuration_reads_deepseek_defaults() -> None:
     """Verify that the official DeepSeek configuration file loads correctly."""
 
@@ -125,6 +141,21 @@ def test_generate_llm_tests_dry_run_succeeds() -> None:
     assert "No API calls were made" in completed.stdout
 
 
+def test_generate_llm_tests_rejects_dry_run_and_execute_together() -> None:
+    """Verify that the generation script rejects conflicting mode flags."""
+
+    completed = subprocess.run(
+        [sys.executable, str(GENERATE_SCRIPT_PATH), "--dry-run", "--execute"],
+        cwd=PROJECT_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert completed.returncode != 0
+    assert "not allowed with argument" in completed.stderr
+
+
 def test_runner_detects_syntax_invalid_generated_test(tmp_path: Path) -> None:
     """Verify that the runner skips generated files with invalid syntax."""
 
@@ -153,3 +184,117 @@ def test_runner_uses_status_file_for_api_error(tmp_path: Path) -> None:
 
     assert has_tests is False
     assert status == "api_error"
+
+
+def test_runner_static_analysis_counts_tests_and_imports() -> None:
+    """Verify the runner's static analysis helpers on a synthetic test file."""
+
+    runner_module = load_module_from_path("ise26_runner_static_analysis", RUNNER_SCRIPT_PATH)
+    content = (
+        "from ise26.targets import clean_customer_names\n"
+        "\n"
+        "def test_clean_customer_names():\n"
+        "    assert True\n"
+    )
+
+    assert runner_module.count_test_functions(content) == 1
+    assert runner_module.count_assert_statements(content) == 1
+    assert runner_module.detect_targets_only_import(content) is True
+    assert runner_module.detect_fixtures_import(content) is False
+
+
+def test_runner_static_analysis_detects_fixtures_import() -> None:
+    """Verify that the runner flags generated files importing internal fixtures."""
+
+    runner_module = load_module_from_path("ise26_runner_fixture_detection", RUNNER_SCRIPT_PATH)
+    content = (
+        "from tests.fixtures import customer_names_dirty_df\n"
+        "from ise26.targets import clean_customer_names\n"
+        "\n"
+        "def test_clean_customer_names():\n"
+        "    assert True\n"
+    )
+
+    assert runner_module.detect_fixtures_import(content) is True
+    assert runner_module.detect_targets_only_import(content) is False
+
+
+def test_summary_metrics_distinguish_reliable_detection_from_false_positive() -> None:
+    """Verify that the summaries separate contaminated suites from reliable ones."""
+
+    summarize_module = load_module_from_path("ise26_summary_metrics", PROJECT_ROOT / "scripts" / "summarize_results.py")
+    raw_results = pd.DataFrame(
+        [
+            {
+                "function_id": "F01",
+                "run_id": "run_01",
+                "test_file": "experiments/generated_tests/F01/run_01/test_generated.py",
+                "test_file_status": "ready",
+                "suite_generation_status": "ready",
+                "suite_is_real_generated": True,
+                "suite_is_placeholder": False,
+                "target_type": "correct",
+                "target_module": "ise26.implementations.correct",
+                "bug_id": "",
+                "exit_code": 1,
+                "passed": False,
+                "stdout": "",
+                "stderr": "",
+                "duration_seconds": 0.1,
+                "executable": True,
+                "collected_tests": 3,
+                "bug_failure": False,
+                "correct_passed_for_same_suite": False,
+                "reliable_defect_detection": False,
+                "false_positive": True,
+                "contaminated_bug_failure": False,
+                "failure_detected": False,
+                "generated_line_count": 10,
+                "generated_test_function_count": 2,
+                "generated_assert_count": 3,
+                "imports_tests_fixtures": False,
+                "imports_only_ise26_targets": True,
+            },
+            {
+                "function_id": "F01",
+                "run_id": "run_01",
+                "test_file": "experiments/generated_tests/F01/run_01/test_generated.py",
+                "test_file_status": "ready",
+                "suite_generation_status": "ready",
+                "suite_is_real_generated": True,
+                "suite_is_placeholder": False,
+                "target_type": "buggy",
+                "target_module": "ise26.implementations.buggy.f01_bug01",
+                "bug_id": "BUG01",
+                "exit_code": 1,
+                "passed": False,
+                "stdout": "",
+                "stderr": "",
+                "duration_seconds": 0.1,
+                "executable": True,
+                "collected_tests": 3,
+                "bug_failure": True,
+                "correct_passed_for_same_suite": False,
+                "reliable_defect_detection": False,
+                "false_positive": True,
+                "contaminated_bug_failure": True,
+                "failure_detected": True,
+                "generated_line_count": 10,
+                "generated_test_function_count": 2,
+                "generated_assert_count": 3,
+                "imports_tests_fixtures": False,
+                "imports_only_ise26_targets": True,
+            },
+        ]
+    )
+
+    prepared_results = summarize_module.prepare_raw_results(raw_results)
+    run_summary = summarize_module.compute_run_level_metrics(prepared_results)
+    overall_summary = summarize_module.compute_overall_metrics(prepared_results, run_summary)
+
+    assert run_summary.loc[0, "bug_failure_rate"] == 1.0
+    assert run_summary.loc[0, "reliable_defect_detection_rate"] == 0.0
+    assert run_summary.loc[0, "false_positive_rate"] == 1.0
+    assert run_summary.loc[0, "contaminated_bug_failure_count"] == 1
+    assert overall_summary.loc[0, "reliable_defect_detection_rate"] == 0.0
+    assert overall_summary.loc[0, "false_positive_rate"] == 1.0

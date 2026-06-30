@@ -171,6 +171,8 @@ Os estados oficiais são:
 - `generated_syntax_invalid`
 - `api_error`
 
+O estado `generated_syntax_valid` significa apenas que o código extraído passou na validação sintática. Ele não implica aprovação na implementação correta nem detecção confiável de defeito.
+
 ## Runner experimental
 
 O script:
@@ -192,6 +194,14 @@ O runner não deve tratar placeholder como dado real e deve registrar de forma c
 - teste placeholder;
 - teste com sintaxe inválida;
 - erro de API em geração anterior.
+
+Na leitura metodológica do CSV bruto:
+
+- `bug_failure` indica falha contra a versão defeituosa;
+- `correct_passed_for_same_suite` indica que a mesma suíte passou na correta;
+- `reliable_defect_detection` indica falha no bug e aprovação na correta;
+- `false_positive` indica falha na correta;
+- `contaminated_bug_failure` indica falha no bug com contaminação pela falha na correta.
 
 ## Resultados experimentais
 
@@ -219,9 +229,16 @@ As métricas principais incluem:
 
 - executabilidade;
 - taxa de aprovação na implementação correta;
-- taxa de detecção de defeitos;
+- falha bruta em versão defeituosa (`defect_detection_rate_raw`);
+- detecção confiável de defeito (`reliable_defect_detection_rate`);
+- taxa de falso positivo (`false_positive_rate`);
+- contagem de falhas contaminadas (`contaminated_bug_failure_count`);
 - número de testes coletados;
 - número de `asserts`, quando medido;
+- número de linhas do teste;
+- número de funções `test_*`;
+- indicação de importação de `tests.fixtures`;
+- indicação de importação apenas de `ise26.targets`;
 - variação entre execuções;
 - quantidade de falhas por função;
 - observações qualitativas.
@@ -237,6 +254,8 @@ As métricas principais incluem:
 - ambiguidade do prompt;
 - alteração indevida de configuração;
 - edição manual indevida.
+- placeholder estrutural;
+- suíte que falha na correta e, por isso, não deve ser contada como detecção confiável.
 
 ## Procedimento experimental recomendado
 
@@ -245,7 +264,7 @@ As métricas principais incluem:
 3. Configurar `.env` local com `DEEPSEEK_API_KEY`.
 4. Rodar `python scripts/generate_llm_tests.py --dry-run`.
 5. Confirmar função, execução e quantidade de chamadas planejadas.
-6. Rodar `python scripts/generate_llm_tests.py --execute`.
+6. Rodar `python scripts/generate_llm_tests.py --execute` apenas quando a rodada oficial começar, sem combinar `--dry-run` e `--execute`.
 7. Rodar `python scripts/run_generated_tests.py`.
 8. Rodar `python scripts/summarize_results.py`.
 9. Registrar observações e limitações.

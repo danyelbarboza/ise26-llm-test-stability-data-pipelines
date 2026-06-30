@@ -12,6 +12,7 @@ Esse é o script oficial para gerar testes com a DeepSeek.
 
 - lê a configuração oficial em `experiments/config/deepseek_v4_flash.json`;
 - monta o prompt final a partir do template padrão;
+- aceita `--dry-run` e `--execute` como modos mutuamente exclusivos;
 - salva `system_prompt.txt`, `prompt.txt` e `request.json`;
 - salva a resposta bruta em `raw_response.txt`;
 - extrai mecanicamente o código para `test_generated.py`;
@@ -36,7 +37,7 @@ python scripts/generate_llm_tests.py --execute
 
 - Se o modo for `dry-run`, nenhuma chamada real é feita.
 - Se faltar `DEEPSEEK_API_KEY`, a execução real deve falhar com erro claro.
-- Se os artefatos já existirem, use `--overwrite` apenas quando a substituição estiver decidida.
+- Se os artefatos já existirem, use `--overwrite` apenas quando a substituição estiver decidida e registre essa decisão no manifesto.
 
 ## Papel de `run_generated_tests.py`
 
@@ -52,6 +53,14 @@ Ele também distingue:
 - erro de API anterior;
 - sintaxe inválida;
 - teste pronto para execução.
+
+O CSV bruto também registra se a falha no bug é confiável ou se a mesma suíte já falhou na correta:
+
+- `bug_failure`;
+- `correct_passed_for_same_suite`;
+- `reliable_defect_detection`;
+- `false_positive`;
+- `contaminated_bug_failure`.
 
 ### Comando
 

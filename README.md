@@ -17,7 +17,7 @@ Com isso, o grupo pode analisar:
 
 - executabilidade;
 - passagem na implementação correta;
-- detecção de defeitos;
+- detecção confiável de defeitos;
 - variação entre execuções repetidas do mesmo modelo.
 
 ## Contexto acadêmico
@@ -53,6 +53,30 @@ No estado atual do repositório:
 - os placeholders de `generated_tests/` continuam existindo para manter a estrutura;
 - qualquer CSV gerado sem testes reais continua sendo apenas saída técnica da infraestrutura, não resultado experimental.
 
+## Leitura metodológica dos resultados
+
+Nesta base, uma suíte só conta como detecção confiável de defeito quando duas coisas acontecem ao mesmo tempo:
+
+- a suíte passa na implementação correta da função;
+- a mesma suíte falha na versão defeituosa testada.
+
+Por isso, os arquivos de resultados passam a separar claramente:
+
+- `bug_failure`: a suíte falhou contra um bug;
+- `correct_passed_for_same_suite`: a mesma suíte passou na implementação correta;
+- `reliable_defect_detection`: houve falha no bug e aprovação na correta;
+- `false_positive`: a suíte falhou na correta;
+- `contaminated_bug_failure`: houve falha no bug, mas a correta também falhou.
+
+Os arquivos `results/summary/*.csv` também registram métricas derivadas como:
+
+- `defect_detection_rate_raw`;
+- `reliable_defect_detection_rate`;
+- `false_positive_rate`;
+- `contaminated_bug_failure_rate`.
+
+Placeholders continuam fora da contagem experimental principal e devem ser lidos apenas como infraestrutura.
+
 ## Como o experimento funciona
 
 O fluxo recomendado é:
@@ -65,7 +89,8 @@ O fluxo recomendado é:
 6. salvar, para cada execução, prompt, resposta bruta, código extraído, metadados e status;
 7. rodar `python scripts/run_generated_tests.py`;
 8. rodar `python scripts/summarize_results.py`;
-9. analisar apenas resultados provenientes de testes realmente gerados pela LLM.
+9. analisar apenas resultados provenientes de testes realmente gerados pela LLM;
+10. conferir se as suítes reais passaram na correta antes de interpretar qualquer falha em bug como detecção confiável.
 
 ## Estrutura do repositório
 

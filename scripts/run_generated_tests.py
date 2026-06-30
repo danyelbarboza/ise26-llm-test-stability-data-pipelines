@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import csv
+from collections import defaultdict
 import json
 import os
 import re
@@ -15,6 +16,7 @@ from typing import Any
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
+CORRECT_MODULE_PATH = PROJECT_ROOT / "src" / "ise26" / "implementations" / "correct.py"
 FUNCTIONS_METADATA_PATH = PROJECT_ROOT / "src" / "ise26" / "metadata" / "functions.json"
 BUGS_METADATA_PATH = PROJECT_ROOT / "src" / "ise26" / "metadata" / "bugs.json"
 GENERATED_TESTS_ROOT = PROJECT_ROOT / "experiments" / "generated_tests"
@@ -92,6 +94,81 @@ def count_collected_tests(stdout: str) -> int | None:
     if matches:
         return int(matches[-1])
     return None
+
+
+def count_assert_statements(content: str) -> int:
+    """Return a rough count of assert statements in a test file.
+
+    The value is intentionally approximate and is used only for descriptive
+    metadata in the experimental scaffold.
+    """
+
+    return len(re.findall(r"\bassert\b", content))
+
+
+def count_test_functions(content: str) -> int:
+    """Return the number of pytest-style test functions in a file."""
+
+    return len(re.findall(r"^\s*def\s+test_", content, flags=re.MULTILINE))
+
+
+def detect_fixtures_import(content: str) -> bool:
+    """Return whether the generated test imports the internal fixtures module."""
+
+    return bool(re.search(r"^\s*(from|import)\s+tests\.fixtures\b", content, flags=re.MULTILINE))
+
+
+def detect_targets_only_import(content: str) -> bool:
+    """Return whether project imports are limited to `ise26.targets`.
+
+    The file may still import third-party testing dependencies such as pandas
+    and pytest. The check only constrains imports that come from within the
+    repository itself.
+    """
+
+    forbidden_project_imports = [
+        r"^\s*(from|import)\s+tests\.",
+        r"^\s*(from|import)\s+ise26\.implementations\.",
+        r"^\s*(from|import)\s+ise26\.metadata\.",
+        r"^\s*(from|import)\s+ise26\.llm\.",
+    ]
+
+    if any(re.search(pattern, content, flags=re.MULTILINE) for pattern in forbidden_project_imports):
+        return False
+
+    return bool(re.search(r"^\s*from\s+ise26\.targets\s+import\s+", content, flags=re.MULTILINE))
+
+
+def analyze_generated_test_file(test_file: Path, test_file_status: str) -> dict[str, Any]:
+    """Collect static metadata for a generated test file.
+
+    Args:
+        test_file: Path to the generated test file.
+        test_file_status: Status label returned by ``detect_test_presence``.
+
+    Returns:
+        A dictionary with rough static metrics and import-surface flags.
+    """
+
+    if not test_file.exists() or test_file_status != "ready":
+        return {
+            "generated_line_count": 0,
+            "generated_test_function_count": 0,
+            "generated_assert_count": 0,
+            "imports_tests_fixtures": False,
+            "imports_only_ise26_targets": False,
+            "generated_has_real_suite": False,
+        }
+
+    content = test_file.read_text(encoding="utf-8")
+    return {
+        "generated_line_count": len(content.splitlines()),
+        "generated_test_function_count": count_test_functions(content),
+        "generated_assert_count": count_assert_statements(content),
+        "imports_tests_fixtures": detect_fixtures_import(content),
+        "imports_only_ise26_targets": detect_targets_only_import(content),
+        "generated_has_real_suite": True,
+    }
 
 
 def detect_test_presence(test_file: Path) -> tuple[bool, str]:
@@ -237,7 +314,21 @@ def write_results_csv(rows: list[dict[str, Any]]) -> None:
         "duration_seconds",
         "executable",
         "collected_tests",
+        "bug_failure",
+        "correct_passed_for_same_suite",
+        "reliable_defect_detection",
+        "false_positive",
+        "contaminated_bug_failure",
         "failure_detected",
+        "suite_generation_status",
+        "suite_is_real_generated",
+        "suite_is_placeholder",
+        "generated_line_count",
+        "generated_test_function_count",
+        "generated_assert_count",
+        "imports_tests_fixtures",
+        "imports_only_ise26_targets",
+        "generated_has_real_suite",
     ]
 
     with RAW_RESULTS_PATH.open("w", encoding="utf-8", newline="") as file_handle:
@@ -255,39 +346,65 @@ def collect_execution_rows() -> list[dict[str, Any]]:
 
     target_matrix = build_target_matrix()
     rows: list[dict[str, Any]] = []
+    targets_by_function: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for target_row in target_matrix:
+        targets_by_function[target_row["function_id"]].append(target_row)
 
-    for function_target in target_matrix:
-        function_id = function_target["function_id"]
+    for function_id, function_targets in targets_by_function.items():
         for run_id in RUN_IDS:
             test_file = GENERATED_TESTS_ROOT / function_id / run_id / "test_generated.py"
             has_executable_tests, test_file_status = detect_test_presence(test_file)
+            suite_static_analysis = analyze_generated_test_file(test_file, test_file_status)
+            suite_rows: list[dict[str, Any]] = []
 
-            if has_executable_tests:
-                execution_result = execute_pytest(test_file, function_target["target_module"])
-            else:
-                # Missing, empty, or placeholder files are recorded as
-                # controlled outcomes so the runner remains usable before any
-                # real LLM-generated suites are added to the repository.
-                execution_result = build_missing_test_result(test_file_status)
+            for function_target in function_targets:
+                if has_executable_tests:
+                    execution_result = execute_pytest(test_file, function_target["target_module"])
+                else:
+                    # Missing, empty, or placeholder files are recorded as
+                    # controlled outcomes so the runner remains usable before any
+                    # real LLM-generated suites are added to the repository.
+                    execution_result = build_missing_test_result(test_file_status)
 
-            failure_detected = (
-                function_target["target_type"] == "buggy"
-                and execution_result["executable"]
-                and not execution_result["passed"]
-            )
+                bug_failure = (
+                    function_target["target_type"] == "buggy"
+                    and execution_result["executable"]
+                    and not execution_result["passed"]
+                )
 
-            row = {
-                "function_id": function_id,
-                "run_id": run_id,
-                "test_file": str(test_file.relative_to(PROJECT_ROOT)),
-                "test_file_status": test_file_status,
-                "target_module": function_target["target_module"],
-                "target_type": function_target["target_type"],
-                "bug_id": function_target["bug_id"],
-                **execution_result,
-                "failure_detected": failure_detected,
-            }
-            rows.append(row)
+                row = {
+                    "function_id": function_id,
+                    "run_id": run_id,
+                    "test_file": str(test_file.relative_to(PROJECT_ROOT)),
+                    "test_file_status": test_file_status,
+                    "target_module": function_target["target_module"],
+                    "target_type": function_target["target_type"],
+                    "bug_id": function_target["bug_id"],
+                    **execution_result,
+                    "bug_failure": bug_failure,
+                    "failure_detected": bug_failure,
+                    "suite_generation_status": test_file_status,
+                    "suite_is_real_generated": test_file_status == "ready",
+                    "suite_is_placeholder": test_file_status == "placeholder",
+                    **suite_static_analysis,
+                }
+                suite_rows.append(row)
+
+            correct_row = next((row for row in suite_rows if row["target_type"] == "correct"), None)
+            correct_passed_for_same_suite = bool(correct_row and correct_row["passed"])
+            false_positive = bool(test_file_status == "ready" and correct_row and not correct_row["passed"])
+
+            for row in suite_rows:
+                row["correct_passed_for_same_suite"] = correct_passed_for_same_suite
+                row["reliable_defect_detection"] = bool(
+                    row["bug_failure"] and correct_passed_for_same_suite
+                )
+                row["contaminated_bug_failure"] = bool(
+                    row["bug_failure"] and false_positive
+                )
+                row["false_positive"] = false_positive
+
+            rows.extend(suite_rows)
 
     return rows
 
@@ -303,9 +420,13 @@ def print_execution_summary(rows: list[dict[str, Any]]) -> None:
     placeholder_rows = sum(1 for row in rows if row["test_file_status"] == "placeholder")
     missing_rows = sum(1 for row in rows if row["test_file_status"] == "missing")
     syntax_invalid_rows = sum(1 for row in rows if row["test_file_status"] == "syntax_invalid")
+    real_suites = len({(row["function_id"], row["run_id"]) for row in rows if row["suite_is_real_generated"]})
+    placeholder_suites = len({(row["function_id"], row["run_id"]) for row in rows if row["suite_is_placeholder"]})
 
     print(f"Saved raw results to: {RAW_RESULTS_PATH}")
     print(f"Total target executions recorded: {len(rows)}")
+    print(f"Real suites detected: {real_suites}")
+    print(f"Placeholder suites detected: {placeholder_suites}")
     print(f"Executable target executions: {executed_rows}")
     print(f"Placeholder target executions skipped: {placeholder_rows}")
     print(f"Missing target executions skipped: {missing_rows}")

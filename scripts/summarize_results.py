@@ -13,6 +13,140 @@ SUMMARY_BY_FUNCTION_PATH = PROJECT_ROOT / "results" / "summary" / "summary_by_fu
 SUMMARY_BY_RUN_PATH = PROJECT_ROOT / "results" / "summary" / "summary_by_run.csv"
 SUMMARY_OVERALL_PATH = PROJECT_ROOT / "results" / "summary" / "summary_overall.csv"
 
+BOOLEAN_COLUMNS = [
+    "passed",
+    "executable",
+    "failure_detected",
+    "bug_failure",
+    "correct_passed_for_same_suite",
+    "reliable_defect_detection",
+    "false_positive",
+    "contaminated_bug_failure",
+    "suite_is_real_generated",
+    "suite_is_placeholder",
+    "imports_tests_fixtures",
+    "imports_only_ise26_targets",
+]
+
+NUMERIC_COLUMNS = [
+    "duration_seconds",
+    "collected_tests",
+    "generated_line_count",
+    "generated_test_function_count",
+    "generated_assert_count",
+]
+
+RUN_SUMMARY_COLUMNS = [
+    "function_id",
+    "run_id",
+    "suite_generation_status",
+    "suite_is_real_generated",
+    "suite_is_placeholder",
+    "suite_count",
+    "real_suite_count",
+    "placeholder_suite_count",
+    "target_executions",
+    "real_target_executions",
+    "placeholder_target_executions",
+    "correct_target_executions",
+    "bug_target_executions",
+    "executability_rate",
+    "correct_pass_rate",
+    "bug_failure_rate",
+    "defect_detection_rate_raw",
+    "reliable_defect_detection_rate",
+    "false_positive_rate",
+    "contaminated_bug_failure_rate",
+    "failure_count",
+    "bug_failure_count",
+    "reliable_defect_detection_count",
+    "false_positive_count",
+    "contaminated_bug_failure_count",
+    "correct_passed_for_same_suite_count",
+    "generated_line_count",
+    "generated_test_function_count",
+    "generated_assert_count",
+    "imports_tests_fixtures",
+    "imports_only_ise26_targets",
+]
+
+FUNCTION_SUMMARY_COLUMNS = [
+    "function_id",
+    "suite_count",
+    "real_suite_count",
+    "placeholder_suite_count",
+    "target_executions",
+    "real_target_executions",
+    "placeholder_target_executions",
+    "correct_target_executions",
+    "bug_target_executions",
+    "executability_rate",
+    "correct_pass_rate",
+    "bug_failure_rate",
+    "defect_detection_rate_raw",
+    "reliable_defect_detection_rate",
+    "false_positive_rate",
+    "contaminated_bug_failure_rate",
+    "failure_count",
+    "bug_failure_count",
+    "reliable_defect_detection_count",
+    "false_positive_count",
+    "contaminated_bug_failure_count",
+    "correct_passed_for_same_suite_count",
+    "run_count",
+    "correct_pass_rate_range",
+    "bug_failure_rate_range",
+    "defect_detection_rate_raw_range",
+    "reliable_defect_detection_rate_range",
+    "false_positive_rate_range",
+    "contaminated_bug_failure_rate_range",
+    "executability_rate_range",
+    "generated_line_count_mean",
+    "generated_test_function_count_mean",
+    "generated_assert_count_mean",
+    "imports_tests_fixtures_rate",
+    "imports_only_ise26_targets_rate",
+]
+
+OVERALL_SUMMARY_COLUMNS = [
+    "executability_rate",
+    "correct_pass_rate",
+    "bug_failure_rate",
+    "defect_detection_rate_raw",
+    "reliable_defect_detection_rate",
+    "false_positive_rate",
+    "contaminated_bug_failure_rate",
+    "failure_count",
+    "bug_failure_count",
+    "reliable_defect_detection_count",
+    "false_positive_count",
+    "contaminated_bug_failure_count",
+    "correct_passed_for_same_suite_count",
+    "suite_count",
+    "real_suite_count",
+    "placeholder_suite_count",
+    "target_executions",
+    "real_target_executions",
+    "placeholder_target_executions",
+    "correct_target_executions",
+    "bug_target_executions",
+    "function_count",
+    "run_label_count",
+    "function_run_count",
+    "correct_pass_rate_range_across_runs",
+    "bug_failure_rate_range_across_runs",
+    "defect_detection_rate_raw_range_across_runs",
+    "reliable_defect_detection_rate_range_across_runs",
+    "false_positive_rate_range_across_runs",
+    "contaminated_bug_failure_rate_range_across_runs",
+    "executability_rate_range_across_runs",
+    "generated_line_count_mean",
+    "generated_test_function_count_mean",
+    "generated_assert_count_mean",
+    "imports_tests_fixtures_rate",
+    "imports_only_ise26_targets_rate",
+]
+
 
 def ensure_summary_directory() -> None:
     """Ensure that the summary output directory exists."""
@@ -54,6 +188,63 @@ def normalize_boolean_column(series: pd.Series) -> pd.Series:
     )
 
 
+def prepare_raw_results(raw_results: pd.DataFrame) -> pd.DataFrame:
+    """Normalize raw CSV columns so the aggregations stay predictable."""
+
+    if raw_results.empty:
+        return raw_results
+
+    prepared = raw_results.copy()
+
+    if "bug_failure" not in prepared.columns and "failure_detected" in prepared.columns:
+        prepared["bug_failure"] = prepared["failure_detected"]
+    if "failure_detected" not in prepared.columns and "bug_failure" in prepared.columns:
+        prepared["failure_detected"] = prepared["bug_failure"]
+
+    default_boolean_columns = {
+        "passed": False,
+        "executable": False,
+        "failure_detected": False,
+        "bug_failure": False,
+        "correct_passed_for_same_suite": False,
+        "reliable_defect_detection": False,
+        "false_positive": False,
+        "contaminated_bug_failure": False,
+        "suite_is_real_generated": False,
+        "suite_is_placeholder": False,
+        "imports_tests_fixtures": False,
+        "imports_only_ise26_targets": False,
+    }
+    for column_name, default_value in default_boolean_columns.items():
+        if column_name not in prepared.columns:
+            prepared[column_name] = default_value
+
+    default_numeric_columns = {
+        "generated_line_count": 0,
+        "generated_test_function_count": 0,
+        "generated_assert_count": 0,
+    }
+    for column_name, default_value in default_numeric_columns.items():
+        if column_name not in prepared.columns:
+            prepared[column_name] = default_value
+
+    for column_name in BOOLEAN_COLUMNS:
+        if column_name in prepared.columns:
+            prepared[column_name] = normalize_boolean_column(prepared[column_name])
+
+    for column_name in NUMERIC_COLUMNS:
+        if column_name in prepared.columns:
+            prepared[column_name] = pd.to_numeric(prepared[column_name], errors="coerce").fillna(0.0)
+
+    prepared["duration_seconds"] = pd.to_numeric(prepared["duration_seconds"], errors="coerce").fillna(0.0)
+    prepared["collected_tests"] = pd.to_numeric(prepared["collected_tests"], errors="coerce")
+
+    if "suite_generation_status" not in prepared.columns:
+        prepared["suite_generation_status"] = prepared["test_file_status"]
+
+    return prepared
+
+
 def load_raw_results() -> pd.DataFrame:
     """Load raw execution results and normalize key analysis columns.
 
@@ -68,15 +259,121 @@ def load_raw_results() -> pd.DataFrame:
     if raw_results.empty:
         return raw_results
 
-    # CSV values can arrive as strings when written by the runner. Normalizing
-    # them here keeps the aggregation logic simple and predictable.
-    raw_results["passed"] = normalize_boolean_column(raw_results["passed"])
-    raw_results["executable"] = normalize_boolean_column(raw_results["executable"])
-    raw_results["failure_detected"] = normalize_boolean_column(raw_results["failure_detected"])
-    raw_results["duration_seconds"] = pd.to_numeric(raw_results["duration_seconds"], errors="coerce").fillna(0.0)
-    raw_results["collected_tests"] = pd.to_numeric(raw_results["collected_tests"], errors="coerce")
+    return prepare_raw_results(raw_results)
 
-    return raw_results
+
+def mean_or_zero(series: pd.Series) -> float:
+    """Return the mean of a series or ``0.0`` when it is empty."""
+
+    if series.empty:
+        return 0.0
+    return float(series.mean())
+
+
+def count_unique_suites(frame: pd.DataFrame) -> int:
+    """Count unique function/run pairs inside a DataFrame."""
+
+    if frame.empty:
+        return 0
+    return int(frame[["function_id", "run_id"]].drop_duplicates().shape[0])
+
+
+def summarize_suite_group(group: pd.DataFrame) -> dict[str, object]:
+    """Summarize one function/run execution group into a single row."""
+
+    real_rows = group[group["suite_is_real_generated"]]
+    placeholder_rows = group[group["suite_is_placeholder"]]
+    correct_rows = real_rows[real_rows["target_type"] == "correct"]
+    bug_rows = real_rows[real_rows["target_type"] == "buggy"]
+
+    suite_generation_status = str(group["suite_generation_status"].iloc[0]) if not group.empty else ""
+    suite_is_real_generated = bool(real_rows.shape[0])
+    suite_is_placeholder = bool(placeholder_rows.shape[0])
+    correct_passed_for_same_suite = bool(not correct_rows.empty and bool(correct_rows["passed"].iloc[0]))
+    false_positive = bool(suite_is_real_generated and not correct_passed_for_same_suite)
+
+    return {
+        "function_id": str(group["function_id"].iloc[0]),
+        "run_id": str(group["run_id"].iloc[0]),
+        "suite_generation_status": suite_generation_status,
+        "suite_is_real_generated": suite_is_real_generated,
+        "suite_is_placeholder": suite_is_placeholder,
+        "suite_count": 1,
+        "real_suite_count": int(suite_is_real_generated),
+        "placeholder_suite_count": int(suite_is_placeholder),
+        "target_executions": int(len(group)),
+        "real_target_executions": int(len(real_rows)),
+        "placeholder_target_executions": int(len(placeholder_rows)),
+        "correct_target_executions": int(len(correct_rows)),
+        "bug_target_executions": int(len(bug_rows)),
+        "executability_rate": mean_or_zero(real_rows["executable"]),
+        "correct_pass_rate": mean_or_zero(correct_rows["passed"]),
+        "bug_failure_rate": mean_or_zero(bug_rows["bug_failure"]),
+        "defect_detection_rate_raw": mean_or_zero(bug_rows["bug_failure"]),
+        "reliable_defect_detection_rate": mean_or_zero(bug_rows["reliable_defect_detection"]),
+        "false_positive_rate": mean_or_zero(correct_rows["false_positive"]),
+        "contaminated_bug_failure_rate": mean_or_zero(bug_rows["contaminated_bug_failure"]),
+        "failure_count": int((real_rows["executable"] & ~real_rows["passed"]).sum()),
+        "bug_failure_count": int(bug_rows["bug_failure"].sum()),
+        "reliable_defect_detection_count": int(bug_rows["reliable_defect_detection"].sum()),
+        "false_positive_count": int(correct_rows["false_positive"].sum()),
+        "contaminated_bug_failure_count": int(bug_rows["contaminated_bug_failure"].sum()),
+        "correct_passed_for_same_suite_count": int(correct_passed_for_same_suite),
+        "generated_line_count": int(real_rows["generated_line_count"].max()) if not real_rows.empty else 0,
+        "generated_test_function_count": int(real_rows["generated_test_function_count"].max()) if not real_rows.empty else 0,
+        "generated_assert_count": int(real_rows["generated_assert_count"].max()) if not real_rows.empty else 0,
+        "imports_tests_fixtures": bool(real_rows["imports_tests_fixtures"].any()) if not real_rows.empty else False,
+        "imports_only_ise26_targets": bool(real_rows["imports_only_ise26_targets"].any()) if not real_rows.empty else False,
+    }
+
+
+def aggregate_suite_summary(group: pd.DataFrame, *, include_function_id: bool = False) -> dict[str, object]:
+    """Aggregate suite-level rows into function-level or overall metrics."""
+
+    real_rows = group[group["suite_is_real_generated"]]
+    placeholder_rows = group[group["suite_is_placeholder"]]
+
+    summary: dict[str, object] = {
+        "suite_count": int(len(group)),
+        "real_suite_count": int(real_rows["suite_count"].sum()) if not real_rows.empty else 0,
+        "placeholder_suite_count": int(placeholder_rows["suite_count"].sum()) if not placeholder_rows.empty else 0,
+        "target_executions": int(group["target_executions"].sum()),
+        "real_target_executions": int(real_rows["real_target_executions"].sum()) if not real_rows.empty else 0,
+        "placeholder_target_executions": int(placeholder_rows["placeholder_target_executions"].sum()) if not placeholder_rows.empty else 0,
+        "correct_target_executions": int(real_rows["correct_target_executions"].sum()) if not real_rows.empty else 0,
+        "bug_target_executions": int(real_rows["bug_target_executions"].sum()) if not real_rows.empty else 0,
+        "executability_rate": mean_or_zero(real_rows["executability_rate"]),
+        "correct_pass_rate": mean_or_zero(real_rows["correct_pass_rate"]),
+        "bug_failure_rate": mean_or_zero(real_rows["bug_failure_rate"]),
+        "defect_detection_rate_raw": mean_or_zero(real_rows["defect_detection_rate_raw"]),
+        "reliable_defect_detection_rate": mean_or_zero(real_rows["reliable_defect_detection_rate"]),
+        "false_positive_rate": mean_or_zero(real_rows["false_positive_rate"]),
+        "contaminated_bug_failure_rate": mean_or_zero(real_rows["contaminated_bug_failure_rate"]),
+        "failure_count": int(real_rows["failure_count"].sum()) if not real_rows.empty else 0,
+        "bug_failure_count": int(real_rows["bug_failure_count"].sum()) if not real_rows.empty else 0,
+        "reliable_defect_detection_count": int(real_rows["reliable_defect_detection_count"].sum()) if not real_rows.empty else 0,
+        "false_positive_count": int(real_rows["false_positive_count"].sum()) if not real_rows.empty else 0,
+        "contaminated_bug_failure_count": int(real_rows["contaminated_bug_failure_count"].sum()) if not real_rows.empty else 0,
+        "correct_passed_for_same_suite_count": int(real_rows["correct_passed_for_same_suite_count"].sum()) if not real_rows.empty else 0,
+        "run_count": int(group["run_id"].nunique()),
+        "correct_pass_rate_range": float(real_rows["correct_pass_rate"].max() - real_rows["correct_pass_rate"].min()) if len(real_rows) > 1 else 0.0,
+        "bug_failure_rate_range": float(real_rows["bug_failure_rate"].max() - real_rows["bug_failure_rate"].min()) if len(real_rows) > 1 else 0.0,
+        "defect_detection_rate_raw_range": float(real_rows["defect_detection_rate_raw"].max() - real_rows["defect_detection_rate_raw"].min()) if len(real_rows) > 1 else 0.0,
+        "reliable_defect_detection_rate_range": float(real_rows["reliable_defect_detection_rate"].max() - real_rows["reliable_defect_detection_rate"].min()) if len(real_rows) > 1 else 0.0,
+        "false_positive_rate_range": float(real_rows["false_positive_rate"].max() - real_rows["false_positive_rate"].min()) if len(real_rows) > 1 else 0.0,
+        "contaminated_bug_failure_rate_range": float(real_rows["contaminated_bug_failure_rate"].max() - real_rows["contaminated_bug_failure_rate"].min()) if len(real_rows) > 1 else 0.0,
+        "executability_rate_range": float(real_rows["executability_rate"].max() - real_rows["executability_rate"].min()) if len(real_rows) > 1 else 0.0,
+        "generated_line_count_mean": mean_or_zero(real_rows["generated_line_count"]),
+        "generated_test_function_count_mean": mean_or_zero(real_rows["generated_test_function_count"]),
+        "generated_assert_count_mean": mean_or_zero(real_rows["generated_assert_count"]),
+        "imports_tests_fixtures_rate": mean_or_zero(real_rows["imports_tests_fixtures"].astype(float)),
+        "imports_only_ise26_targets_rate": mean_or_zero(real_rows["imports_only_ise26_targets"].astype(float)),
+    }
+
+    if include_function_id:
+        summary["function_id"] = str(group["function_id"].iloc[0])
+
+    return summary
 
 
 def compute_run_level_metrics(raw_results: pd.DataFrame) -> pd.DataFrame:
@@ -90,42 +387,14 @@ def compute_run_level_metrics(raw_results: pd.DataFrame) -> pd.DataFrame:
     """
 
     if raw_results.empty:
-        return build_empty_summary_frame(
-            [
-                "function_id",
-                "run_id",
-                "executability_rate",
-                "correct_pass_rate",
-                "defect_detection_rate",
-                "failure_count",
-                "target_executions",
-                "executable_target_executions",
-                "collected_tests_max",
-            ]
-        )
+        return build_empty_summary_frame(RUN_SUMMARY_COLUMNS)
 
-    grouped_rows: list[dict[str, object]] = []
-    for (function_id, run_id), group in raw_results.groupby(["function_id", "run_id"], sort=True):
-        correct_group = group[group["target_type"] == "correct"]
-        buggy_group = group[group["target_type"] == "buggy"]
+    grouped_rows = [
+        summarize_suite_group(group)
+        for _, group in raw_results.groupby(["function_id", "run_id"], sort=True)
+    ]
 
-        # Run-level metrics summarize the outcome of one generated suite across
-        # the four target modules associated with the same function.
-        grouped_rows.append(
-            {
-                "function_id": function_id,
-                "run_id": run_id,
-                "executability_rate": group["executable"].mean(),
-                "correct_pass_rate": correct_group["passed"].mean() if not correct_group.empty else 0.0,
-                "defect_detection_rate": buggy_group["failure_detected"].mean() if not buggy_group.empty else 0.0,
-                "failure_count": int((group["executable"] & ~group["passed"]).sum()),
-                "target_executions": int(len(group)),
-                "executable_target_executions": int(group["executable"].sum()),
-                "collected_tests_max": int(group["collected_tests"].max()) if group["collected_tests"].notna().any() else 0,
-            }
-        )
-
-    return pd.DataFrame(grouped_rows).sort_values(["function_id", "run_id"]).reset_index(drop=True)
+    return pd.DataFrame(grouped_rows, columns=RUN_SUMMARY_COLUMNS).sort_values(["function_id", "run_id"]).reset_index(drop=True)
 
 
 def compute_function_level_metrics(
@@ -141,58 +410,15 @@ def compute_function_level_metrics(
         A function-level summary DataFrame.
     """
 
-    if raw_results.empty:
-        return build_empty_summary_frame(
-            [
-                "function_id",
-                "executability_rate",
-                "correct_pass_rate",
-                "defect_detection_rate",
-                "failure_count",
-                "target_executions",
-                "run_count",
-                "correct_pass_rate_range",
-                "defect_detection_rate_range",
-                "executability_rate_range",
-            ]
-        )
+    if raw_results.empty or run_summary.empty:
+        return build_empty_summary_frame(FUNCTION_SUMMARY_COLUMNS)
 
-    grouped_rows: list[dict[str, object]] = []
-    for function_id, group in raw_results.groupby("function_id", sort=True):
-        function_runs = run_summary[run_summary["function_id"] == function_id]
-        correct_group = group[group["target_type"] == "correct"]
-        buggy_group = group[group["target_type"] == "buggy"]
+    grouped_rows = [
+        aggregate_suite_summary(group, include_function_id=True)
+        for _, group in run_summary.groupby("function_id", sort=True)
+    ]
 
-        # The range fields capture cross-run variation, which is one of the
-        # core study interests for generated test stability.
-        grouped_rows.append(
-            {
-                "function_id": function_id,
-                "executability_rate": group["executable"].mean(),
-                "correct_pass_rate": correct_group["passed"].mean() if not correct_group.empty else 0.0,
-                "defect_detection_rate": buggy_group["failure_detected"].mean() if not buggy_group.empty else 0.0,
-                "failure_count": int((group["executable"] & ~group["passed"]).sum()),
-                "target_executions": int(len(group)),
-                "run_count": int(function_runs["run_id"].nunique()) if not function_runs.empty else 0,
-                "correct_pass_rate_range": (
-                    function_runs["correct_pass_rate"].max() - function_runs["correct_pass_rate"].min()
-                    if not function_runs.empty
-                    else 0.0
-                ),
-                "defect_detection_rate_range": (
-                    function_runs["defect_detection_rate"].max() - function_runs["defect_detection_rate"].min()
-                    if not function_runs.empty
-                    else 0.0
-                ),
-                "executability_rate_range": (
-                    function_runs["executability_rate"].max() - function_runs["executability_rate"].min()
-                    if not function_runs.empty
-                    else 0.0
-                ),
-            }
-        )
-
-    return pd.DataFrame(grouped_rows).sort_values("function_id").reset_index(drop=True)
+    return pd.DataFrame(grouped_rows, columns=FUNCTION_SUMMARY_COLUMNS).sort_values("function_id").reset_index(drop=True)
 
 
 def compute_overall_metrics(raw_results: pd.DataFrame, run_summary: pd.DataFrame) -> pd.DataFrame:
@@ -206,54 +432,57 @@ def compute_overall_metrics(raw_results: pd.DataFrame, run_summary: pd.DataFrame
         A one-row overall summary DataFrame.
     """
 
-    if raw_results.empty:
-        return build_empty_summary_frame(
-            [
-                "executability_rate",
-                "correct_pass_rate",
-                "defect_detection_rate",
-                "failure_count",
-                "target_executions",
-                "function_count",
-                "run_count",
-                "correct_pass_rate_range_across_runs",
-                "defect_detection_rate_range_across_runs",
-                "executability_rate_range_across_runs",
-            ]
-        )
+    if raw_results.empty or run_summary.empty:
+        return build_empty_summary_frame(OVERALL_SUMMARY_COLUMNS)
 
-    correct_group = raw_results[raw_results["target_type"] == "correct"]
-    buggy_group = raw_results[raw_results["target_type"] == "buggy"]
+    overall_row = aggregate_suite_summary(run_summary)
+    overall_row["function_count"] = int(run_summary["function_id"].nunique())
+    overall_row["run_label_count"] = int(run_summary["run_id"].nunique())
+    overall_row["function_run_count"] = count_unique_suites(run_summary)
 
-    # The overall view is intentionally compact so it can be inspected quickly
-    # before moving into the more detailed per-function and per-run reports.
-    overall_row = {
-        "executability_rate": raw_results["executable"].mean(),
-        "correct_pass_rate": correct_group["passed"].mean() if not correct_group.empty else 0.0,
-        "defect_detection_rate": buggy_group["failure_detected"].mean() if not buggy_group.empty else 0.0,
-        "failure_count": int((raw_results["executable"] & ~raw_results["passed"]).sum()),
-        "target_executions": int(len(raw_results)),
-        "function_count": int(raw_results["function_id"].nunique()),
-        "function_run_count": int(run_summary[["function_id", "run_id"]].drop_duplicates().shape[0]) if not run_summary.empty else 0,
-        "run_label_count": int(raw_results["run_id"].nunique()),
-        "correct_pass_rate_range_across_runs": (
-            run_summary["correct_pass_rate"].max() - run_summary["correct_pass_rate"].min()
-            if not run_summary.empty
-            else 0.0
-        ),
-        "defect_detection_rate_range_across_runs": (
-            run_summary["defect_detection_rate"].max() - run_summary["defect_detection_rate"].min()
-            if not run_summary.empty
-            else 0.0
-        ),
-        "executability_rate_range_across_runs": (
-            run_summary["executability_rate"].max() - run_summary["executability_rate"].min()
-            if not run_summary.empty
-            else 0.0
-        ),
-    }
+    real_rows = run_summary[run_summary["suite_is_real_generated"]]
+    overall_row["correct_pass_rate_range_across_runs"] = (
+        float(real_rows["correct_pass_rate"].max() - real_rows["correct_pass_rate"].min())
+        if len(real_rows) > 1
+        else 0.0
+    )
+    overall_row["bug_failure_rate_range_across_runs"] = (
+        float(real_rows["bug_failure_rate"].max() - real_rows["bug_failure_rate"].min())
+        if len(real_rows) > 1
+        else 0.0
+    )
+    overall_row["defect_detection_rate_raw_range_across_runs"] = (
+        float(real_rows["defect_detection_rate_raw"].max() - real_rows["defect_detection_rate_raw"].min())
+        if len(real_rows) > 1
+        else 0.0
+    )
+    overall_row["reliable_defect_detection_rate_range_across_runs"] = (
+        float(real_rows["reliable_defect_detection_rate"].max() - real_rows["reliable_defect_detection_rate"].min())
+        if len(real_rows) > 1
+        else 0.0
+    )
+    overall_row["false_positive_rate_range_across_runs"] = (
+        float(real_rows["false_positive_rate"].max() - real_rows["false_positive_rate"].min())
+        if len(real_rows) > 1
+        else 0.0
+    )
+    overall_row["contaminated_bug_failure_rate_range_across_runs"] = (
+        float(real_rows["contaminated_bug_failure_rate"].max() - real_rows["contaminated_bug_failure_rate"].min())
+        if len(real_rows) > 1
+        else 0.0
+    )
+    overall_row["executability_rate_range_across_runs"] = (
+        float(real_rows["executability_rate"].max() - real_rows["executability_rate"].min())
+        if len(real_rows) > 1
+        else 0.0
+    )
+    overall_row["generated_line_count_mean"] = mean_or_zero(real_rows["generated_line_count"])
+    overall_row["generated_test_function_count_mean"] = mean_or_zero(real_rows["generated_test_function_count"])
+    overall_row["generated_assert_count_mean"] = mean_or_zero(real_rows["generated_assert_count"])
+    overall_row["imports_tests_fixtures_rate"] = mean_or_zero(real_rows["imports_tests_fixtures"].astype(float))
+    overall_row["imports_only_ise26_targets_rate"] = mean_or_zero(real_rows["imports_only_ise26_targets"].astype(float))
 
-    return pd.DataFrame([overall_row])
+    return pd.DataFrame([overall_row], columns=OVERALL_SUMMARY_COLUMNS)
 
 
 def write_summary_outputs(

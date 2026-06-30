@@ -22,17 +22,43 @@ from ise26.llm.prompt_builder import build_prompt_bundle
 from ise26.llm.reproducibility import (
     build_environment_snapshot,
     build_request_payload,
+    compute_file_hash,
     compute_json_hash,
     compute_text_hash,
     load_json_configuration,
 )
 
 CONFIG_PATH = PROJECT_ROOT / "experiments" / "config" / "deepseek_v4_flash.json"
+CORRECT_MODULE_PATH = PROJECT_ROOT / "src" / "ise26" / "implementations" / "correct.py"
 FUNCTIONS_METADATA_PATH = PROJECT_ROOT / "src" / "ise26" / "metadata" / "functions.json"
 GENERATED_TESTS_ROOT = PROJECT_ROOT / "experiments" / "generated_tests"
 MANIFEST_PATH = GENERATED_TESTS_ROOT / "manifest.csv"
 PLACEHOLDER_MARKER = "GENERATED_TEST_PLACEHOLDER"
 RUN_IDS = [f"run_{index:02d}" for index in range(1, 6)]
+MANIFEST_FIELDNAMES = [
+    "function_id",
+    "function_name",
+    "run_id",
+    "provider",
+    "model",
+    "temperature",
+    "top_p",
+    "max_tokens",
+    "timestamp_utc",
+    "status",
+    "syntax_valid",
+    "prompt_hash",
+    "function_code_hash",
+    "correct_module_hash",
+    "config_hash",
+    "response_hash",
+    "output_path",
+    "error_summary",
+    "input_tokens",
+    "output_tokens",
+    "total_tokens",
+    "overwrite_used",
+]
 
 
 def load_environment_file() -> None:
@@ -52,12 +78,13 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Generate Pytest suites with DeepSeek for the ISE26 experiment."
     )
-    parser.add_argument(
+    mode_group = parser.add_mutually_exclusive_group()
+    mode_group.add_argument(
         "--dry-run",
         action="store_true",
         help="Build prompts and show the execution plan without calling the API.",
     )
-    parser.add_argument(
+    mode_group.add_argument(
         "--execute",
         action="store_true",
         help="Perform real API calls. This flag is required for non-dry execution.",
@@ -217,9 +244,11 @@ def build_metadata_payload(
     config: dict[str, Any],
     prompt_hash: str,
     function_code_hash: str,
+    correct_module_hash: str,
     config_hash: str,
     response_hash: str | None,
     syntax_valid: bool,
+    overwrite_used: bool,
     call_result: dict[str, Any],
     environment_snapshot: dict[str, Any],
     extraction_mode: str | None,
@@ -239,9 +268,11 @@ def build_metadata_payload(
         "timestamp_utc": environment_snapshot["timestamp_utc"],
         "prompt_hash": prompt_hash,
         "function_code_hash": function_code_hash,
+        "correct_module_hash": correct_module_hash,
         "config_hash": config_hash,
         "response_hash": response_hash,
         "syntax_valid": syntax_valid,
+        "overwrite_used": overwrite_used,
         "success": call_result["success"],
         "error": call_result["error"],
         "usage": call_result["usage"],
@@ -258,34 +289,37 @@ def build_metadata_payload(
     }
 
 
+def rewrite_manifest_with_current_schema() -> None:
+    """Rewrite the manifest so older rows follow the current column layout."""
+
+    if not MANIFEST_PATH.exists():
+        return
+
+    with MANIFEST_PATH.open("r", encoding="utf-8", newline="") as file_handle:
+        reader = csv.DictReader(file_handle)
+        existing_rows = list(reader)
+        existing_fieldnames = reader.fieldnames or []
+
+    if existing_fieldnames == MANIFEST_FIELDNAMES:
+        return
+
+    MANIFEST_PATH.parent.mkdir(parents=True, exist_ok=True)
+    with MANIFEST_PATH.open("w", encoding="utf-8", newline="") as file_handle:
+        writer = csv.DictWriter(file_handle, fieldnames=MANIFEST_FIELDNAMES)
+        writer.writeheader()
+        for row in existing_rows:
+            writer.writerow({field: row.get(field, "") for field in MANIFEST_FIELDNAMES})
+
+
 def append_manifest_row(row: dict[str, Any]) -> None:
     """Append one generation-attempt row to the manifest CSV."""
 
     MANIFEST_PATH.parent.mkdir(parents=True, exist_ok=True)
-    fieldnames = [
-        "function_id",
-        "function_name",
-        "run_id",
-        "provider",
-        "model",
-        "temperature",
-        "top_p",
-        "max_tokens",
-        "timestamp_utc",
-        "status",
-        "syntax_valid",
-        "prompt_hash",
-        "response_hash",
-        "output_path",
-        "error_summary",
-        "input_tokens",
-        "output_tokens",
-        "total_tokens",
-    ]
+    rewrite_manifest_with_current_schema()
     write_header = not MANIFEST_PATH.exists()
 
     with MANIFEST_PATH.open("a", encoding="utf-8", newline="") as file_handle:
-        writer = csv.DictWriter(file_handle, fieldnames=fieldnames)
+        writer = csv.DictWriter(file_handle, fieldnames=MANIFEST_FIELDNAMES)
         if write_header:
             writer.writeheader()
         writer.writerow(row)
@@ -313,6 +347,7 @@ def execute_generation_attempt(
     plan_item: dict[str, Any],
     config: dict[str, Any],
     command_executed: str,
+    overwrite_used: bool,
 ) -> dict[str, Any]:
     """Execute one real generation attempt and persist its artifacts."""
 
@@ -355,6 +390,7 @@ def execute_generation_attempt(
         f"{prompt_bundle.system_prompt}\n\n---ISE26-USER-PROMPT---\n\n{prompt_bundle.user_prompt}"
     )
     function_code_hash = compute_text_hash(plan_item["function_code"])
+    correct_module_hash = compute_file_hash(CORRECT_MODULE_PATH)
     config_hash = compute_json_hash(config)
     environment_snapshot = build_environment_snapshot(PROJECT_ROOT, command_executed)
 
@@ -380,9 +416,11 @@ def execute_generation_attempt(
             config=config,
             prompt_hash=prompt_hash,
             function_code_hash=function_code_hash,
+            correct_module_hash=correct_module_hash,
             config_hash=config_hash,
             response_hash=None,
             syntax_valid=False,
+            overwrite_used=overwrite_used,
             call_result=call_result,
             environment_snapshot=environment_snapshot,
             extraction_mode=None,
@@ -407,12 +445,16 @@ def execute_generation_attempt(
             "status": "api_error",
             "syntax_valid": False,
             "prompt_hash": prompt_hash,
+            "function_code_hash": function_code_hash,
+            "correct_module_hash": correct_module_hash,
+            "config_hash": config_hash,
             "response_hash": "",
             "output_path": str(output_directory.relative_to(PROJECT_ROOT)),
             "error_summary": call_result["error"] or "",
             "input_tokens": "",
             "output_tokens": "",
             "total_tokens": "",
+            "overwrite_used": overwrite_used,
         }
 
     extraction_result = extract_python_code(call_result["response_text"])
@@ -432,9 +474,11 @@ def execute_generation_attempt(
         config=config,
         prompt_hash=prompt_hash,
         function_code_hash=function_code_hash,
+        correct_module_hash=correct_module_hash,
         config_hash=config_hash,
         response_hash=response_hash,
         syntax_valid=extraction_result.syntax_valid,
+        overwrite_used=overwrite_used,
         call_result=call_result,
         environment_snapshot=environment_snapshot,
         extraction_mode=extraction_result.extraction_mode,
@@ -458,12 +502,16 @@ def execute_generation_attempt(
         "status": status,
         "syntax_valid": extraction_result.syntax_valid,
         "prompt_hash": prompt_hash,
+        "function_code_hash": function_code_hash,
+        "correct_module_hash": correct_module_hash,
+        "config_hash": config_hash,
         "response_hash": response_hash,
         "output_path": str(output_directory.relative_to(PROJECT_ROOT)),
         "error_summary": extraction_result.syntax_error or "",
         "input_tokens": usage.get("prompt_tokens", ""),
         "output_tokens": usage.get("completion_tokens", ""),
         "total_tokens": usage.get("total_tokens", ""),
+        "overwrite_used": overwrite_used,
     }
 
 
@@ -476,7 +524,10 @@ def main(argv: list[str] | None = None) -> int:
     plan = build_generation_plan(args.function_id, args.run_id)
     execute = bool(args.execute)
     dry_run = bool(args.dry_run or not execute)
+    overwrite_used = bool(args.overwrite)
 
+    if overwrite_used:
+        print("Overwrite mode is enabled. Existing artifacts may be replaced for matching targets.")
     summarize_plan(plan, config, execute=execute)
 
     if dry_run and not execute:
@@ -494,7 +545,12 @@ def main(argv: list[str] | None = None) -> int:
             print(f"Skipping existing generated artifacts at: {relative_output}")
             continue
 
-        manifest_row = execute_generation_attempt(plan_item, config, command_executed)
+        manifest_row = execute_generation_attempt(
+            plan_item,
+            config,
+            command_executed,
+            overwrite_used,
+        )
         manifest_rows.append(manifest_row)
         append_manifest_row(manifest_row)
         print(

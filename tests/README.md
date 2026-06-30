@@ -25,6 +25,7 @@ Eles servem para:
 - confirmar integridade estrutural do repositório;
 - validar `ise26.targets`;
 - validar a infraestrutura DeepSeek sem usar a API real.
+- validar a lógica metodológica do runner e dos summaries em cenários sintéticos isolados.
 
 ## Papel de `tests/fixtures.py`
 
